@@ -1,0 +1,53 @@
+.leads-analysis-button {
+  margin-left: 8px;
+  padding: 6px 14px;
+  border: none;
+  border-radius: 6px;
+  background: #2e6be6;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.leads-analysis-button:hover {
+  background: #2558c4;
+}
+
+.leads-analysis-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: #f5f6f8;
+  display: flex;
+  flex-direction: column;
+}
+
+.leads-analysis-overlay__bar {
+  flex: 0 0 auto;
+  display: flex;
+  justify-content: flex-end;
+  padding: 8px 12px;
+  background: #fff;
+  border-bottom: 1px solid #e3e6eb;
+}
+
+.leads-analysis-overlay__close {
+  border: none;
+  background: transparent;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  color: #6b7280;
+  padding: 4px 10px;
+}
+
+.leads-analysis-overlay__close:hover {
+  color: #111827;
+}
+
+.leads-analysis-overlay__frame {
+  flex: 1 1 auto;
+  width: 100%;
+  border: none;
+}

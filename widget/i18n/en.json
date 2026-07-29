@@ -1,0 +1,13 @@
+{
+  "widget": {
+    "name": "Leads Analysis",
+    "description": "Dashboard: how many leads came in, from which sources, how many reached the key stage and the sale, and the conversion rate for each step.",
+    "short_description": "Lead funnel conversion dashboard"
+  },
+  "button": {
+    "open": "Leads Analysis"
+  },
+  "error": {
+    "not_installed": "This account isn't connected to the widget server."
+  }
+}

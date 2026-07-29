@@ -1,0 +1,15 @@
+{
+  "widget": {
+    "name": "widget.name",
+    "description": "widget.description",
+    "short_description": "widget.short_description",
+    "code": "leads_analysis",
+    "secret_key": "REPLACE_WITH_KEY_FROM_AMOCRM_INTEGRATION",
+    "version": "0.1.0",
+    "locale": ["ru"],
+    "installation": true,
+    "interface_version": 2
+  },
+  "locations": ["llist-0"],
+  "settings": {}
+}
