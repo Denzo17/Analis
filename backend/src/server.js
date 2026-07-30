@@ -16,7 +16,16 @@ if (missing.length) {
 }
 
 const app = express();
-app.use(cors({ origin: true }));
+// Behind nginx — needed so req.ip reflects the real client (X-Forwarded-For)
+// instead of always resolving to nginx's own address, which would make the
+// login rate limiter in routes/dashboard.js useless.
+app.set('trust proxy', 1);
+// The dashboard's own JS always calls /api/* same-origin (both are served by
+// this same process), so cross-origin access here has no legitimate use —
+// restrict it instead of reflecting every origin, which would otherwise let
+// any other site's JS read our responses from a browser that happens to hold
+// a valid session token.
+app.use(cors({ origin: process.env.APP_BASE_URL }));
 app.use(express.json());
 app.use(cookieParser());
 

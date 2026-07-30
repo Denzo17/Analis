@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const express = require('express');
 const {
   issueLoginToken,
@@ -16,6 +17,41 @@ const COOKIE_OPTIONS = {
   secure: process.env.NODE_ENV === 'production',
   maxAge: 30 * 24 * 60 * 60 * 1000
 };
+
+function passwordMatches(candidate, expected) {
+  const candidateBuf = Buffer.from(String(candidate || ''));
+  const expectedBuf = Buffer.from(String(expected || ''));
+  // Pad to equal length first — timingSafeEqual throws on a length mismatch,
+  // and returning early on that mismatch would itself leak the real length.
+  const padded = Buffer.alloc(expectedBuf.length);
+  candidateBuf.copy(padded);
+  return candidateBuf.length === expectedBuf.length && crypto.timingSafeEqual(padded, expectedBuf);
+}
+
+// In-memory per-IP throttle for the password form — this is the only gate
+// in front of the whole dashboard, so it shouldn't be brute-forceable.
+// Resets on process restart, which is an acceptable trade for not adding an
+// external store just for this.
+const LOGIN_MAX_ATTEMPTS = 10;
+const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+const loginAttempts = new Map();
+
+function isRateLimited(ip) {
+  const now = Date.now();
+  const entry = loginAttempts.get(ip);
+  if (!entry || now > entry.resetAt) {
+    loginAttempts.set(ip, { count: 1, resetAt: now + LOGIN_WINDOW_MS });
+    return false;
+  }
+  entry.count += 1;
+  return entry.count > LOGIN_MAX_ATTEMPTS;
+}
+
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, (ch) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[ch]));
+}
 
 router.get('/login', (req, res) => {
   const error = req.query.error ? '<p style="color:#d03b3b;margin:0 0 12px">Неверный пароль.</p>' : '';
@@ -42,8 +78,12 @@ router.get('/login', (req, res) => {
 });
 
 router.post('/login', express.urlencoded({ extended: false }), (req, res) => {
+  if (isRateLimited(req.ip)) {
+    res.status(429).send('Слишком много попыток входа. Попробуйте снова через 15 минут.');
+    return;
+  }
   const { password } = req.body || {};
-  if (!process.env.DASHBOARD_PASSWORD || password !== process.env.DASHBOARD_PASSWORD) {
+  if (!process.env.DASHBOARD_PASSWORD || !passwordMatches(password, process.env.DASHBOARD_PASSWORD)) {
     res.redirect('/dashboard/login?error=1');
     return;
   }
@@ -79,7 +119,7 @@ router.get('/', requireDashboardLogin, (req, res) => {
   if (accounts.length > 1 && !req.query.account_id) {
     res.set('Content-Type', 'text/html; charset=utf-8');
     const items = accounts
-      .map((a) => `<li><a href="/dashboard?account_id=${a.account_id}">${a.subdomain}.amocrm.ru</a></li>`)
+      .map((a) => `<li><a href="/dashboard?account_id=${Number(a.account_id)}">${escapeHtml(a.subdomain)}.amocrm.ru</a></li>`)
       .join('');
     res.send(
       `<div style="font-family:system-ui,sans-serif;max-width:480px;margin:80px auto;">` +

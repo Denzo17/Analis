@@ -3,11 +3,20 @@ const fs = require('fs');
 const Database = require('better-sqlite3');
 
 const dbPath = process.env.DB_PATH || './data/app.sqlite';
-fs.mkdirSync(path.dirname(dbPath), { recursive: true });
+// This file holds live amoCRM OAuth tokens in plaintext — restrict it to
+// the app's own OS user (0700/0600) so it isn't readable by other local
+// accounts on a shared box, on top of never being served over HTTP.
+fs.mkdirSync(path.dirname(dbPath), { recursive: true, mode: 0o700 });
 
 const db = new Database(dbPath);
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
+try {
+  fs.chmodSync(dbPath, 0o600);
+} catch (err) {
+  // best-effort — file may not exist yet on a brand-new DB in some
+  // better-sqlite3 versions until the first write
+}
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS accounts (
