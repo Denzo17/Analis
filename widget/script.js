@@ -1,6 +1,20 @@
+// TEMPORARY debug marker — search the amoCRM console for "[leads_analysis]"
+// to check whether amoCRM even loaded this file. Remove once the widget is
+// confirmed working end to end.
+if (window.console) {
+  console.log('[leads_analysis] script.js file evaluated');
+}
+
 define(['jquery'], function ($) {
+  if (window.console) {
+    console.log('[leads_analysis] AMD module factory ran (jquery dependency resolved)');
+  }
+
   return function () {
     var self = this;
+    if (window.console) {
+      console.log('[leads_analysis] widget constructor instantiated');
+    }
 
     // TODO: point this at your deployed backend's APP_BASE_URL before
     // packaging the widget (see repo README "Деплой" section).
@@ -76,16 +90,20 @@ define(['jquery'], function ($) {
 
     this.callbacks = {
       init: function () {
+        if (window.console) console.log('[leads_analysis] init() called');
         return true;
       },
       render: function () {
+        if (window.console) console.log('[leads_analysis] render() called, injecting button');
         injectButton();
         return true;
       },
       bind_actions: function () {
+        if (window.console) console.log('[leads_analysis] bind_actions() called');
         return true;
       },
       settings: function ($modal_body) {
+        if (window.console) console.log('[leads_analysis] settings() called');
         $modal_body.html(
           '<div style="padding:16px">' +
             t('widget.description', '') +
