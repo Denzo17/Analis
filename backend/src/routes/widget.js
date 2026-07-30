@@ -1,11 +1,15 @@
 const express = require('express');
 const { verifyWidgetSignature, issueSessionToken } = require('../middleware/session');
+const { renderDashboardHtml } = require('../services/renderDashboardPage');
 
 const router = express.Router();
 
-// Entry point loaded inside the amoCRM widget's iframe (see widget/script.js).
-// Verifies the HMAC signature amoCRM's widget shim generated, then hands the
-// static dashboard app a short-lived session token to call /api/* with.
+// Entry point for embedding inside amoCRM's own UI via a widget iframe (see
+// widget/script.js). Kept for later — the private/OAuth-only integration
+// type currently available in this account has no widget-file upload step,
+// so day-to-day access goes through the standalone /dashboard route
+// instead (see routes/dashboard.js). If in-CRM embedding becomes possible
+// later, this route still works unchanged.
 router.get('/', (req, res) => {
   const { account_id: accountId, subdomain, lang } = req.query;
 
@@ -17,32 +21,8 @@ router.get('/', (req, res) => {
   }
 
   const sessionToken = issueSessionToken({ accountId: Number(accountId), subdomain });
-
   res.set('Content-Type', 'text/html; charset=utf-8');
-  res.send(`<!doctype html>
-<html lang="${lang === 'en' ? 'en' : 'ru'}">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Анализ лидов</title>
-  <link rel="stylesheet" href="/static/css/dashboard.css" />
-</head>
-<body>
-  <div id="app" class="la-app">Загрузка…</div>
-  <script>
-    window.__LEADS_ANALYSIS_SESSION__ = {
-      token: ${JSON.stringify(sessionToken)},
-      accountId: ${JSON.stringify(Number(accountId))},
-      subdomain: ${JSON.stringify(subdomain)},
-      lang: ${JSON.stringify(lang === 'en' ? 'en' : 'ru')}
-    };
-  </script>
-  <script src="/static/js/charts.js"></script>
-  <script src="/static/js/filters.js"></script>
-  <script src="/static/js/settings-panel.js"></script>
-  <script src="/static/js/app.js"></script>
-</body>
-</html>`);
+  res.send(renderDashboardHtml({ accountId, subdomain, lang, sessionToken }));
 });
 
 module.exports = router;

@@ -12,6 +12,7 @@ const upsertStmt = db.prepare(`
 `);
 
 const getStmt = db.prepare('SELECT * FROM accounts WHERE account_id = ?');
+const listStmt = db.prepare('SELECT * FROM accounts ORDER BY created_at ASC');
 
 function saveTokens(accountId, subdomain, { accessToken, refreshToken, expiresIn }) {
   const now = Math.floor(Date.now() / 1000);
@@ -29,4 +30,8 @@ function getAccount(accountId) {
   return getStmt.get(accountId);
 }
 
-module.exports = { saveTokens, getAccount };
+function listAccounts() {
+  return listStmt.all();
+}
+
+module.exports = { saveTokens, getAccount, listAccounts };

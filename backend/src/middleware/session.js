@@ -33,6 +33,35 @@ function issueSessionToken({ accountId, subdomain }) {
   });
 }
 
+const LOGIN_COOKIE_NAME = 'la_login';
+const LOGIN_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60; // 30d
+
+// The standalone /dashboard page (see routes/dashboard.js) isn't opened
+// from inside an authenticated amoCRM session, so unlike the iframe path
+// above there's no amoCRM-side fact to lean on at all — a shared password
+// is the only gate. Keep this login separate from the amoCRM OAuth tokens:
+// it only proves "this browser knows the dashboard password", nothing more.
+function issueLoginToken() {
+  return jwt.sign({ type: 'dashboard_login' }, process.env.SESSION_JWT_SECRET, {
+    expiresIn: LOGIN_TOKEN_TTL_SECONDS
+  });
+}
+
+function requireDashboardLogin(req, res, next) {
+  const token = req.cookies && req.cookies[LOGIN_COOKIE_NAME];
+  if (!token) {
+    res.redirect('/dashboard/login');
+    return;
+  }
+  try {
+    const payload = jwt.verify(token, process.env.SESSION_JWT_SECRET);
+    if (payload.type !== 'dashboard_login') throw new Error('wrong_token_type');
+    next();
+  } catch (err) {
+    res.redirect('/dashboard/login');
+  }
+}
+
 function requireSession(req, res, next) {
   const header = req.headers.authorization || '';
   const token = header.startsWith('Bearer ') ? header.slice(7) : null;
@@ -49,4 +78,11 @@ function requireSession(req, res, next) {
   }
 }
 
-module.exports = { verifyWidgetSignature, issueSessionToken, requireSession };
+module.exports = {
+  verifyWidgetSignature,
+  issueSessionToken,
+  requireSession,
+  issueLoginToken,
+  requireDashboardLogin,
+  LOGIN_COOKIE_NAME
+};

@@ -2,12 +2,14 @@ const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '..', '..', '.env') });
 const express = require('express');
 const cors = require('cors');
+const cookieParser = require('cookie-parser');
 
 const oauthRoutes = require('./routes/oauth');
 const widgetRoutes = require('./routes/widget');
 const apiRoutes = require('./routes/api');
+const dashboardRoutes = require('./routes/dashboard');
 
-const REQUIRED_ENV = ['AMO_CLIENT_ID', 'AMO_CLIENT_SECRET', 'AMO_REDIRECT_URI', 'SESSION_JWT_SECRET'];
+const REQUIRED_ENV = ['AMO_CLIENT_ID', 'AMO_CLIENT_SECRET', 'AMO_REDIRECT_URI', 'SESSION_JWT_SECRET', 'DASHBOARD_PASSWORD'];
 const missing = REQUIRED_ENV.filter((key) => !process.env[key]);
 if (missing.length) {
   console.warn(`[config] Missing env vars: ${missing.join(', ')} — see .env.example`);
@@ -16,12 +18,14 @@ if (missing.length) {
 const app = express();
 app.use(cors({ origin: true }));
 app.use(express.json());
+app.use(cookieParser());
 
 app.get('/health', (req, res) => res.json({ ok: true }));
 
 app.use('/oauth', oauthRoutes);
 app.use('/widget', widgetRoutes);
 app.use('/api', apiRoutes);
+app.use('/dashboard', dashboardRoutes);
 app.use('/static', express.static(path.join(__dirname, '..', '..', 'frontend')));
 
 const port = process.env.PORT || 3000;
