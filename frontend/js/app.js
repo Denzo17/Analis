@@ -190,7 +190,7 @@
     var pipeline = currentPipeline();
     api('/api/settings?pipelineId=' + state.pipelineId).then(function (settings) {
       var host = document.createElement('div');
-      document.body.appendChild(host);
+      appEl.appendChild(host);
       window.LA.settingsPanel.render(host, {
         settings: settings,
         pipelineStatuses: pipeline.statuses,
