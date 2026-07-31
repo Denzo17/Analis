@@ -36,6 +36,33 @@ async function fetchSources(accountId) {
   }
 }
 
+// amoCRM gives UTM fields a stable field_code (UTM_CAMPAIGN, UTM_SOURCE, …)
+// when digital pipeline tracking is on, regardless of what the account
+// renamed the field to — match on that first, and fall back to matching the
+// field's display name in case it's a plain custom field someone created
+// by hand instead.
+async function fetchLeadCustomFields(accountId) {
+  const data = await amocrm.apiRequest(accountId, '/api/v4/leads/custom_fields', { query: { limit: 250 } });
+  const fields = (data && data._embedded && data._embedded.custom_fields) || [];
+  return fields.map((f) => ({ id: f.id, name: f.name, code: f.code }));
+}
+
+function findUtmCampaignFieldId(customFields) {
+  const byCode = customFields.find((f) => f.code === 'UTM_CAMPAIGN');
+  if (byCode) return byCode.id;
+  const byName = customFields.find((f) => String(f.name || '').toLowerCase().replace(/\s+/g, '_') === 'utm_campaign');
+  return byName ? byName.id : null;
+}
+
+function getCustomFieldValue(lead, fieldId) {
+  if (!fieldId) return null;
+  const values = lead.custom_fields_values;
+  if (!values) return null;
+  const field = values.find((f) => f.field_id === fieldId);
+  if (!field || !field.values || !field.values.length) return null;
+  return field.values[0].value || null;
+}
+
 async function fetchLeadsInRange(accountId, { pipelineId, dateFrom, dateTo }) {
   const leads = [];
   for (let page = 1; page <= MAX_PAGES; page += 1) {
@@ -89,7 +116,7 @@ function rate(numerator, denominator) {
   return Math.round((numerator / denominator) * 10000) / 100; // 2 decimal places
 }
 
-function filterLeads(leads, { managerIds, sourceIds }) {
+function filterLeads(leads, { managerIds, sourceIds, utmCampaigns, utmFieldId }) {
   return leads.filter((lead) => {
     if (managerIds && managerIds.length && !managerIds.includes(lead.responsible_user_id)) {
       return false;
@@ -100,8 +127,36 @@ function filterLeads(leads, { managerIds, sourceIds }) {
         return false;
       }
     }
+    if (utmCampaigns && utmCampaigns.length) {
+      const value = getCustomFieldValue(lead, utmFieldId);
+      if (!value || !utmCampaigns.includes(value)) {
+        return false;
+      }
+    }
     return true;
   });
+}
+
+// Filter dropdown options are derived from the leads actually loaded for the
+// current pipeline/date range rather than a separate catalog call — amoCRM's
+// /api/v4/sources catalog is frequently empty even when leads carry a source
+// name (it only lists formally configured digital-pipeline sources), and
+// there's no catalog endpoint for UTM campaign values at all.
+function buildFilterOptions(leads, utmFieldId) {
+  const sourcesById = new Map();
+  const utmCampaigns = new Set();
+  leads.forEach((lead) => {
+    const source = lead._embedded && lead._embedded.source;
+    if (source && source.id && !sourcesById.has(source.id)) {
+      sourcesById.set(source.id, source.name || `#${source.id}`);
+    }
+    const utmValue = getCustomFieldValue(lead, utmFieldId);
+    if (utmValue) utmCampaigns.add(utmValue);
+  });
+  return {
+    sources: Array.from(sourcesById.entries()).map(([id, name]) => ({ id, name })),
+    utmCampaigns: Array.from(utmCampaigns.values()).sort()
+  };
 }
 
 function summarizeGroup(leads, keyStageId, saleStageId, stageOrder) {
@@ -125,9 +180,10 @@ function summarizeGroup(leads, keyStageId, saleStageId, stageOrder) {
   };
 }
 
-function buildDashboard({ leads, statuses, users, keyStageId, saleStageId, filters }) {
+function buildDashboard({ leads, statuses, users, keyStageId, saleStageId, filters, utmFieldId }) {
   const stageOrder = buildStageOrder(statuses);
-  const filtered = filterLeads(leads, filters || {});
+  const filterOptions = buildFilterOptions(leads, utmFieldId);
+  const filtered = filterLeads(leads, { ...(filters || {}), utmFieldId });
 
   const overall = summarizeGroup(filtered, keyStageId, saleStageId, stageOrder);
 
@@ -159,17 +215,20 @@ function buildDashboard({ leads, statuses, users, keyStageId, saleStageId, filte
       statusId: l.status_id,
       statusName: statusNameById.get(l.status_id) || '',
       sourceName: (l._embedded && l._embedded.source && l._embedded.source.name) || '',
+      utmCampaign: getCustomFieldValue(l, utmFieldId) || '',
       createdAt: l.created_at,
       price: l.price || 0
     }));
 
-  return { overall, managerBreakdown, dealsInProgress };
+  return { overall, managerBreakdown, dealsInProgress, filterOptions };
 }
 
 module.exports = {
   fetchPipelines,
   fetchUsers,
   fetchSources,
+  fetchLeadCustomFields,
+  findUtmCampaignFieldId,
   fetchLeadsInRange,
   buildDashboard,
   WON_STATUS_ID,

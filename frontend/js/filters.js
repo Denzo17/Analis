@@ -30,7 +30,10 @@
     return node;
   }
 
-  function multiSelect(label, options, selectedIds) {
+  // options: [{id, name}]. isString keeps values as-is (UTM campaigns are
+  // free-text); otherwise values round-trip through Number() (source ids,
+  // manager ids).
+  function multiSelect(label, options, selectedValues, isString) {
     var wrap = el('div', 'la-filter');
     var lbl = el('label');
     lbl.textContent = label;
@@ -40,16 +43,25 @@
       var o = document.createElement('option');
       o.value = opt.id;
       o.textContent = opt.name;
-      o.selected = selectedIds.indexOf(opt.id) !== -1;
+      o.selected = selectedValues.indexOf(opt.id) !== -1;
       select.appendChild(o);
     });
     wrap.appendChild(lbl);
     wrap.appendChild(select);
-    return { wrap: wrap, select: select };
+    return {
+      wrap: wrap,
+      select: select,
+      readValues: function () {
+        return Array.from(select.selectedOptions).map(function (o) {
+          return isString ? o.value : Number(o.value);
+        });
+      }
+    };
   }
 
   // Renders the tab row (pipelines) + filter row into `container`.
-  // opts: { pipelines, users, sources, current: {pipelineId, datePreset, dateFrom, dateTo, managerIds, sourceIds},
+  // opts: { pipelines, users, sources, utmCampaigns,
+  //         current: {pipelineId, datePreset, dateFrom, dateTo, managerIds, sourceIds, utmCampaigns},
   //         onPipelineChange(pipelineId), onFiltersChange(filters), onOpenSettings() }
   function renderFilterBar(container, opts) {
     container.innerHTML = '';
@@ -129,18 +141,25 @@
 
     var managers = multiSelect('Ответственные', opts.users, opts.current.managerIds || []);
     managers.select.addEventListener('change', function () {
-      var selected = Array.from(managers.select.selectedOptions).map(function (o) { return Number(o.value); });
-      opts.onFiltersChange({ managerIds: selected });
+      opts.onFiltersChange({ managerIds: managers.readValues() });
     });
     filtersRow.appendChild(managers.wrap);
 
-    var sources = multiSelect('Источники', opts.sources, opts.current.sourceIds || []);
+    var sources = multiSelect('Источник', opts.sources, opts.current.sourceIds || []);
     sources.select.addEventListener('change', function () {
-      var selected = Array.from(sources.select.selectedOptions).map(function (o) { return Number(o.value); });
-      opts.onFiltersChange({ sourceIds: selected });
+      opts.onFiltersChange({ sourceIds: sources.readValues() });
     });
     if (opts.sources.length) {
       filtersRow.appendChild(sources.wrap);
+    }
+
+    var utmOptions = (opts.utmCampaigns || []).map(function (value) { return { id: value, name: value }; });
+    var utm = multiSelect('utm_campaign', utmOptions, opts.current.utmCampaigns || [], true);
+    utm.select.addEventListener('change', function () {
+      opts.onFiltersChange({ utmCampaigns: utm.readValues() });
+    });
+    if (utmOptions.length) {
+      filtersRow.appendChild(utm.wrap);
     }
 
     var settingsBtn = el('button', 'la-settings-toggle');

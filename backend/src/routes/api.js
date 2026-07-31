@@ -14,6 +14,14 @@ function parseIdList(value) {
     .filter((v) => Number.isFinite(v));
 }
 
+function parseStringList(value) {
+  if (!value) return [];
+  return String(value)
+    .split(',')
+    .map((v) => v.trim())
+    .filter(Boolean);
+}
+
 router.get('/filters/options', async (req, res) => {
   try {
     const { accountId } = req.session;
@@ -65,16 +73,17 @@ router.get('/dashboard/summary', async (req, res) => {
       return;
     }
 
-    const { dateFrom, dateTo, managerIds, sourceIds } = req.query;
+    const { dateFrom, dateTo, managerIds, sourceIds, utmCampaigns } = req.query;
 
-    const [pipelines, users, leads] = await Promise.all([
+    const [pipelines, users, leads, customFields] = await Promise.all([
       analytics.fetchPipelines(accountId),
       analytics.fetchUsers(accountId),
       analytics.fetchLeadsInRange(accountId, {
         pipelineId,
         dateFrom: dateFrom ? Math.floor(Number(dateFrom)) : undefined,
         dateTo: dateTo ? Math.floor(Number(dateTo)) : undefined
-      })
+      }),
+      analytics.fetchLeadCustomFields(accountId).catch(() => [])
     ]);
 
     const pipeline = pipelines.find((p) => p.id === pipelineId);
@@ -83,15 +92,19 @@ router.get('/dashboard/summary', async (req, res) => {
       return;
     }
 
+    const utmFieldId = analytics.findUtmCampaignFieldId(customFields);
+
     const dashboard = analytics.buildDashboard({
       leads,
       statuses: pipeline.statuses,
       users,
       keyStageId: settings.keyStageId,
       saleStageId: settings.saleStageId,
+      utmFieldId,
       filters: {
         managerIds: parseIdList(managerIds),
-        sourceIds: parseIdList(sourceIds)
+        sourceIds: parseIdList(sourceIds),
+        utmCampaigns: parseStringList(utmCampaigns)
       }
     });
 

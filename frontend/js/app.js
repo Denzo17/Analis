@@ -6,8 +6,9 @@
     pipelines: [],
     users: [],
     sources: [],
+    utmCampaigns: [],
     pipelineId: null,
-    filters: { datePreset: 'last30', managerIds: [], sourceIds: [] }
+    filters: { datePreset: 'last30', managerIds: [], sourceIds: [], utmCampaigns: [] }
   };
 
   var initialRange = window.LA.filters.presetRange('last30');
@@ -54,6 +55,7 @@
       pipelines: state.pipelines,
       users: state.users,
       sources: state.sources,
+      utmCampaigns: state.utmCampaigns,
       current: Object.assign({ pipelineId: state.pipelineId }, state.filters),
       onPipelineChange: function (pipelineId) {
         state.pipelineId = pipelineId;
@@ -110,6 +112,12 @@
   }
 
   function renderDashboard(data) {
+    if (data.filterOptions) {
+      state.sources = data.filterOptions.sources || [];
+      state.utmCampaigns = data.filterOptions.utmCampaigns || [];
+      renderTopbar();
+    }
+
     var content = document.getElementById('la-content-container');
     content.innerHTML = '';
     var design = data.settings.design || {};
@@ -155,6 +163,7 @@
         { key: 'responsibleUserName', label: 'Ответственный' },
         { key: 'statusName', label: 'Статус' },
         { key: 'sourceName', label: 'Источник' },
+        { key: 'utmCampaign', label: 'utm_campaign' },
         { key: 'price', label: 'Бюджет', numeric: true }
       ], data.dealsInProgress.slice(0, 50));
     }
@@ -170,6 +179,7 @@
     });
     if (state.filters.managerIds && state.filters.managerIds.length) query.set('managerIds', state.filters.managerIds.join(','));
     if (state.filters.sourceIds && state.filters.sourceIds.length) query.set('sourceIds', state.filters.sourceIds.join(','));
+    if (state.filters.utmCampaigns && state.filters.utmCampaigns.length) query.set('utmCampaigns', state.filters.utmCampaigns.join(','));
 
     api('/api/dashboard/summary?' + query.toString())
       .then(renderDashboard)
