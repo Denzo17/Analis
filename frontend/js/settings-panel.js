@@ -78,6 +78,7 @@
     var blockDefs = [
       ['showFunnelChart', 'Воронка конверсии'],
       ['showManagerTable', 'Таблица по менеджерам'],
+      ['showUtmTable', 'Таблица по utm_campaign'],
       ['showDealsInProgress', 'Сделки в работе']
     ];
     var blockCheckboxes = {};
@@ -112,6 +113,7 @@
         visibleTiles: visible,
         showFunnelChart: blockCheckboxes.showFunnelChart.checked,
         showManagerTable: blockCheckboxes.showManagerTable.checked,
+        showUtmTable: blockCheckboxes.showUtmTable.checked,
         showDealsInProgress: blockCheckboxes.showDealsInProgress.checked
       };
       opts.onSave({

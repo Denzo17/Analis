@@ -203,6 +203,20 @@ function buildDashboard({ leads, statuses, users, keyStageId, saleStageId, filte
     }))
     .sort((a, b) => b.newCount - a.newCount);
 
+  const NO_UTM_LABEL = '(без utm_campaign)';
+  const byUtm = new Map();
+  filtered.forEach((lead) => {
+    const value = getCustomFieldValue(lead, utmFieldId) || NO_UTM_LABEL;
+    if (!byUtm.has(value)) byUtm.set(value, []);
+    byUtm.get(value).push(lead);
+  });
+  const utmBreakdown = Array.from(byUtm.entries())
+    .map(([utmCampaign, utmLeads]) => ({
+      utmCampaign,
+      ...summarizeGroup(utmLeads, keyStageId, saleStageId, stageOrder)
+    }))
+    .sort((a, b) => b.newCount - a.newCount);
+
   const statusNameById = new Map(statuses.map((s) => [s.id, s.name]));
   const dealsInProgress = filtered
     .filter((l) => l.status_id !== WON_STATUS_ID && l.status_id !== LOST_STATUS_ID)
@@ -220,7 +234,7 @@ function buildDashboard({ leads, statuses, users, keyStageId, saleStageId, filte
       price: l.price || 0
     }));
 
-  return { overall, managerBreakdown, dealsInProgress, filterOptions };
+  return { overall, managerBreakdown, utmBreakdown, dealsInProgress, filterOptions };
 }
 
 module.exports = {

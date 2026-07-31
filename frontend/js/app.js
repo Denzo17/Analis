@@ -155,6 +155,20 @@
       ], data.managerBreakdown);
     }
 
+    if (design.showUtmTable !== false) {
+      var utmHost = document.createElement('div');
+      content.appendChild(utmHost);
+      window.LA.charts.renderTable(utmHost, 'По utm_campaign', [
+        { key: 'utmCampaign', label: 'utm_campaign' },
+        { key: 'newCount', label: 'Новые', numeric: true },
+        { key: 'newToKeyRate', label: 'Лид → Ключ, %', numeric: true, percent: true, meter: true },
+        { key: 'keyCount', label: 'Ключевой этап', numeric: true },
+        { key: 'keyToSaleRate', label: 'Ключ → Продажа, %', numeric: true, percent: true, meter: true },
+        { key: 'saleCount', label: 'Продажи', numeric: true },
+        { key: 'newToSaleRate', label: 'Лид → Продажа, %', numeric: true, percent: true, meter: true }
+      ], data.utmBreakdown);
+    }
+
     if (design.showDealsInProgress !== false) {
       var dealsHost = document.createElement('div');
       content.appendChild(dealsHost);
