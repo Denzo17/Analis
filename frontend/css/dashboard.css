@@ -273,6 +273,27 @@ table.la-table {
 }
 .la-meter-cell__value { position: relative; z-index: 1; }
 
+/* ---- tree table (Источник клиента → utm_source → utm_campaign) ---- */
+.la-tree-toggle {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 10px;
+  width: 16px;
+  display: inline-block;
+  text-align: center;
+  padding: 0;
+}
+.la-tree-toggle:hover { color: var(--text-primary); }
+
+.la-tree-spacer {
+  display: inline-block;
+  width: 16px;
+}
+
+.la-tree-row:hover { background: var(--gridline); }
+
 /* ---- settings panel ---- */
 .la-settings {
   position: fixed;

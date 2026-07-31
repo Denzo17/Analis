@@ -47,11 +47,33 @@ async function fetchLeadCustomFields(accountId) {
   return fields.map((f) => ({ id: f.id, name: f.name, code: f.code }));
 }
 
+function findFieldId(customFields, { code, name }) {
+  if (code) {
+    const byCode = customFields.find((f) => f.code === code);
+    if (byCode) return byCode.id;
+  }
+  if (name) {
+    const normalized = name.toLowerCase().trim();
+    const byName = customFields.find((f) => String(f.name || '').toLowerCase().trim() === normalized);
+    if (byName) return byName.id;
+  }
+  return null;
+}
+
 function findUtmCampaignFieldId(customFields) {
-  const byCode = customFields.find((f) => f.code === 'UTM_CAMPAIGN');
-  if (byCode) return byCode.id;
-  const byName = customFields.find((f) => String(f.name || '').toLowerCase().replace(/\s+/g, '_') === 'utm_campaign');
-  return byName ? byName.id : null;
+  return findFieldId(customFields, { code: 'UTM_CAMPAIGN', name: 'utm_campaign' });
+}
+
+function findUtmSourceFieldId(customFields) {
+  return findFieldId(customFields, { code: 'UTM_SOURCE', name: 'utm_source' });
+}
+
+// "Источник клиента" isn't a standardized amoCRM field (no field_code for
+// it) — it's a plain custom field this account created, so name-matching is
+// the only option. If the account ever renames it, this lookup needs the
+// new name too.
+function findClientSourceFieldId(customFields) {
+  return findFieldId(customFields, { name: 'Источник клиента' });
 }
 
 function getCustomFieldValue(lead, fieldId) {
@@ -180,7 +202,40 @@ function summarizeGroup(leads, keyStageId, saleStageId, stageOrder) {
   };
 }
 
-function buildDashboard({ leads, statuses, users, keyStageId, saleStageId, filters, utmFieldId }) {
+// Groups `leads` by levels[0]'s field value, then recurses into each
+// resulting bucket for levels[1], etc. — building the "Источник клиента →
+// utm_source → utm_campaign" drill-down tree. Each node carries the same
+// stats as the flat per-manager table so every level of the tree is
+// readable on its own, not just the leaves.
+function buildGroupTree(leads, levels, levelIndex, keyStageId, saleStageId, stageOrder) {
+  if (levelIndex >= levels.length) return null;
+  const level = levels[levelIndex];
+  const groups = new Map();
+  leads.forEach((lead) => {
+    const value = getCustomFieldValue(lead, level.fieldId) || level.emptyLabel;
+    if (!groups.has(value)) groups.set(value, []);
+    groups.get(value).push(lead);
+  });
+  return Array.from(groups.entries())
+    .map(([label, groupLeads]) => ({
+      label,
+      ...summarizeGroup(groupLeads, keyStageId, saleStageId, stageOrder),
+      children: buildGroupTree(groupLeads, levels, levelIndex + 1, keyStageId, saleStageId, stageOrder)
+    }))
+    .sort((a, b) => b.newCount - a.newCount);
+}
+
+function buildDashboard({
+  leads,
+  statuses,
+  users,
+  keyStageId,
+  saleStageId,
+  filters,
+  utmFieldId,
+  utmSourceFieldId,
+  clientSourceFieldId
+}) {
   const stageOrder = buildStageOrder(statuses);
   const filterOptions = buildFilterOptions(leads, utmFieldId);
   const filtered = filterLeads(leads, { ...(filters || {}), utmFieldId });
@@ -203,19 +258,12 @@ function buildDashboard({ leads, statuses, users, keyStageId, saleStageId, filte
     }))
     .sort((a, b) => b.newCount - a.newCount);
 
-  const NO_UTM_LABEL = '(без utm_campaign)';
-  const byUtm = new Map();
-  filtered.forEach((lead) => {
-    const value = getCustomFieldValue(lead, utmFieldId) || NO_UTM_LABEL;
-    if (!byUtm.has(value)) byUtm.set(value, []);
-    byUtm.get(value).push(lead);
-  });
-  const utmBreakdown = Array.from(byUtm.entries())
-    .map(([utmCampaign, utmLeads]) => ({
-      utmCampaign,
-      ...summarizeGroup(utmLeads, keyStageId, saleStageId, stageOrder)
-    }))
-    .sort((a, b) => b.newCount - a.newCount);
+  const sourceTreeLevels = [
+    { fieldId: clientSourceFieldId, emptyLabel: '(не указан источник)' },
+    { fieldId: utmSourceFieldId, emptyLabel: '(без utm_source)' },
+    { fieldId: utmFieldId, emptyLabel: '(без utm_campaign)' }
+  ];
+  const sourceTree = buildGroupTree(filtered, sourceTreeLevels, 0, keyStageId, saleStageId, stageOrder);
 
   const statusNameById = new Map(statuses.map((s) => [s.id, s.name]));
   const dealsInProgress = filtered
@@ -234,7 +282,7 @@ function buildDashboard({ leads, statuses, users, keyStageId, saleStageId, filte
       price: l.price || 0
     }));
 
-  return { overall, managerBreakdown, utmBreakdown, dealsInProgress, filterOptions };
+  return { overall, managerBreakdown, sourceTree, dealsInProgress, filterOptions };
 }
 
 module.exports = {
@@ -243,6 +291,8 @@ module.exports = {
   fetchSources,
   fetchLeadCustomFields,
   findUtmCampaignFieldId,
+  findUtmSourceFieldId,
+  findClientSourceFieldId,
   fetchLeadsInRange,
   buildDashboard,
   WON_STATUS_ID,

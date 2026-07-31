@@ -93,6 +93,8 @@ router.get('/dashboard/summary', async (req, res) => {
     }
 
     const utmFieldId = analytics.findUtmCampaignFieldId(customFields);
+    const utmSourceFieldId = analytics.findUtmSourceFieldId(customFields);
+    const clientSourceFieldId = analytics.findClientSourceFieldId(customFields);
 
     const dashboard = analytics.buildDashboard({
       leads,
@@ -101,6 +103,8 @@ router.get('/dashboard/summary', async (req, res) => {
       keyStageId: settings.keyStageId,
       saleStageId: settings.saleStageId,
       utmFieldId,
+      utmSourceFieldId,
+      clientSourceFieldId,
       filters: {
         managerIds: parseIdList(managerIds),
         sourceIds: parseIdList(sourceIds),
