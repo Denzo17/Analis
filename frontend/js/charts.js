@@ -16,7 +16,12 @@
     return (Math.round((value || 0) * 100) / 100).toLocaleString('ru-RU') + '%';
   }
 
-  // tiles: [{ label, value, isPercent, accent }]
+  function formatCurrency(value) {
+    if (value == null) return '—';
+    return new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', maximumFractionDigits: 0 }).format(value);
+  }
+
+  // tiles: [{ label, value, isPercent, isCurrency, accent }]
   function renderTiles(container, tiles) {
     container.innerHTML = '';
     var wrap = el('div', 'la-tiles');
@@ -24,7 +29,7 @@
       var box = el('div', 'la-tile');
       box.appendChild(el('div', 'la-tile__label', tile.label));
       var valueEl = el('div', 'la-tile__value' + (tile.accent ? ' la-tile__value--accent' : ''));
-      valueEl.textContent = tile.isPercent ? formatPercent(tile.value) : formatNumber(tile.value);
+      valueEl.textContent = tile.isCurrency ? formatCurrency(tile.value) : (tile.isPercent ? formatPercent(tile.value) : formatNumber(tile.value));
       box.appendChild(valueEl);
       wrap.appendChild(box);
     });
@@ -62,8 +67,10 @@
   // Renders one <td> for a stat column (used by both renderTable and
   // renderTree so the meter-bar/percent/number formatting stays identical).
   function renderStatCell(col, raw) {
-    var td = el('td', col.numeric ? 'la-num' : '');
-    var text = col.percent ? formatPercent(raw) : (col.numeric ? formatNumber(raw) : (raw == null ? '' : String(raw)));
+    var td = el('td', col.numeric || col.currency ? 'la-num' : '');
+    var text = col.currency
+      ? formatCurrency(raw)
+      : (col.percent ? formatPercent(raw) : (col.numeric ? formatNumber(raw) : (raw == null ? '' : String(raw))));
     if (col.meter) {
       td.classList.add('la-meter-cell');
       var bar = el('div', 'la-meter-cell__bar');
@@ -89,7 +96,7 @@
     var thead = el('thead');
     var headRow = el('tr');
     columns.forEach(function (col) {
-      headRow.appendChild(el('th', col.numeric ? 'la-num' : '', col.label));
+      headRow.appendChild(el('th', col.numeric || col.currency ? 'la-num' : '', col.label));
     });
     thead.appendChild(headRow);
     table.appendChild(thead);
@@ -132,7 +139,7 @@
     var headRow = el('tr');
     headRow.appendChild(el('th', '', labelHeader));
     statColumns.forEach(function (col) {
-      headRow.appendChild(el('th', col.numeric ? 'la-num' : '', col.label));
+      headRow.appendChild(el('th', col.numeric || col.currency ? 'la-num' : '', col.label));
     });
     thead.appendChild(headRow);
     table.appendChild(thead);
@@ -201,7 +208,9 @@
     { key: 'sale_rate_from_key', label: 'Ключевой → Продажа, %', isPercent: true },
     { key: 'sale_rate_from_new', label: 'Лид → Продажа, %', isPercent: true },
     { key: 'in_progress', label: 'В работе' },
-    { key: 'lost', label: 'Отказ' }
+    { key: 'lost', label: 'Отказ' },
+    { key: 'cost_per_lead', label: 'Цена лида (сайт)', isCurrency: true },
+    { key: 'cost_per_sale', label: 'Цена клиента (сайт)', isCurrency: true }
   ];
 
   LA.charts = {

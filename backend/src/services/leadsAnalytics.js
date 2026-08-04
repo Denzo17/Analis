@@ -138,6 +138,34 @@ function rate(numerator, denominator) {
   return Math.round((numerator / denominator) * 10000) / 100; // 2 decimal places
 }
 
+function round2(value) {
+  return Math.round(value * 100) / 100;
+}
+
+// The account tracks ad spend only for site-originated leads, so cost
+// figures only make sense under this one branch of the "Источник клиента"
+// tree — hardcoded to the exact value the account uses for that field.
+const SITE_LEAD_SOURCE_LABEL = 'Заявка с сайта';
+
+function isSiteLeadSourceLabel(label) {
+  return String(label || '').trim().toLowerCase() === SITE_LEAD_SOURCE_LABEL.toLowerCase();
+}
+
+// Attaches cpl/cac (cost per lead / cost per sale) to a tree node and every
+// descendant, all computed against the same total spend — this isn't real
+// per-channel budget attribution (we only have one total spend figure, not
+// a split by campaign), it's "what this segment's leads would cost if the
+// whole budget had gone to it alone", which is still a useful relative
+// efficiency signal between branches.
+function attachCost(node, spend) {
+  if (!node) return;
+  node.cpl = spend && node.newCount ? round2(spend / node.newCount) : null;
+  node.cac = spend && node.saleCount ? round2(spend / node.saleCount) : null;
+  if (node.children) {
+    node.children.forEach((child) => attachCost(child, spend));
+  }
+}
+
 function filterLeads(leads, { managerIds, sourceIds, utmCampaigns, utmFieldId }) {
   return leads.filter((lead) => {
     if (managerIds && managerIds.length && !managerIds.includes(lead.responsible_user_id)) {
@@ -234,7 +262,8 @@ function buildDashboard({
   filters,
   utmFieldId,
   utmSourceFieldId,
-  clientSourceFieldId
+  clientSourceFieldId,
+  marketingSpend
 }) {
   const stageOrder = buildStageOrder(statuses);
   const filterOptions = buildFilterOptions(leads, utmFieldId);
@@ -265,6 +294,18 @@ function buildDashboard({
   ];
   const sourceTree = buildGroupTree(filtered, sourceTreeLevels, 0, keyStageId, saleStageId, stageOrder);
 
+  const siteLeadNode = sourceTree.find((node) => isSiteLeadSourceLabel(node.label));
+  if (siteLeadNode) {
+    attachCost(siteLeadNode, marketingSpend);
+  }
+  const cost = {
+    spend: marketingSpend || 0,
+    newCount: siteLeadNode ? siteLeadNode.newCount : 0,
+    saleCount: siteLeadNode ? siteLeadNode.saleCount : 0,
+    cpl: siteLeadNode ? siteLeadNode.cpl : null,
+    cac: siteLeadNode ? siteLeadNode.cac : null
+  };
+
   const statusNameById = new Map(statuses.map((s) => [s.id, s.name]));
   const dealsInProgress = filtered
     .filter((l) => l.status_id !== WON_STATUS_ID && l.status_id !== LOST_STATUS_ID)
@@ -282,10 +323,11 @@ function buildDashboard({
       price: l.price || 0
     }));
 
-  return { overall, managerBreakdown, sourceTree, dealsInProgress, filterOptions };
+  return { overall, managerBreakdown, sourceTree, dealsInProgress, filterOptions, cost };
 }
 
 module.exports = {
+  SITE_LEAD_SOURCE_LABEL,
   fetchPipelines,
   fetchUsers,
   fetchSources,

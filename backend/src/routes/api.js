@@ -2,6 +2,7 @@ const express = require('express');
 const { requireSession } = require('../middleware/session');
 const analytics = require('../services/leadsAnalytics');
 const settingsStore = require('../services/settingsStore');
+const marketingSpendStore = require('../services/marketingSpendStore');
 
 const router = express.Router();
 router.use(requireSession);
@@ -58,6 +59,21 @@ router.post('/settings', (req, res) => {
   res.json(saved);
 });
 
+router.post('/marketing-spend', (req, res) => {
+  const { accountId } = req.session;
+  const { pipelineId, dateFrom, dateTo, amount } = req.body || {};
+  const pipelineIdNum = Number(pipelineId);
+  const dateFromNum = Math.floor(Number(dateFrom));
+  const dateToNum = Math.floor(Number(dateTo));
+  const amountNum = Number(amount);
+  if (!pipelineIdNum || !Number.isFinite(dateFromNum) || !Number.isFinite(dateToNum) || !Number.isFinite(amountNum) || amountNum < 0) {
+    res.status(400).json({ error: 'invalid_params' });
+    return;
+  }
+  marketingSpendStore.saveSpend(accountId, pipelineIdNum, dateFromNum, dateToNum, amountNum);
+  res.json({ amount: amountNum });
+});
+
 router.get('/dashboard/summary', async (req, res) => {
   try {
     const { accountId } = req.session;
@@ -74,15 +90,13 @@ router.get('/dashboard/summary', async (req, res) => {
     }
 
     const { dateFrom, dateTo, managerIds, sourceIds, utmCampaigns } = req.query;
+    const dateFromNum = dateFrom ? Math.floor(Number(dateFrom)) : undefined;
+    const dateToNum = dateTo ? Math.floor(Number(dateTo)) : undefined;
 
     const [pipelines, users, leads, customFields] = await Promise.all([
       analytics.fetchPipelines(accountId),
       analytics.fetchUsers(accountId),
-      analytics.fetchLeadsInRange(accountId, {
-        pipelineId,
-        dateFrom: dateFrom ? Math.floor(Number(dateFrom)) : undefined,
-        dateTo: dateTo ? Math.floor(Number(dateTo)) : undefined
-      }),
+      analytics.fetchLeadsInRange(accountId, { pipelineId, dateFrom: dateFromNum, dateTo: dateToNum }),
       analytics.fetchLeadCustomFields(accountId).catch(() => [])
     ]);
 
@@ -95,6 +109,9 @@ router.get('/dashboard/summary', async (req, res) => {
     const utmFieldId = analytics.findUtmCampaignFieldId(customFields);
     const utmSourceFieldId = analytics.findUtmSourceFieldId(customFields);
     const clientSourceFieldId = analytics.findClientSourceFieldId(customFields);
+    const marketingSpend = dateFromNum && dateToNum
+      ? marketingSpendStore.getSpend(accountId, pipelineId, dateFromNum, dateToNum)
+      : 0;
 
     const dashboard = analytics.buildDashboard({
       leads,
@@ -105,6 +122,7 @@ router.get('/dashboard/summary', async (req, res) => {
       utmFieldId,
       utmSourceFieldId,
       clientSourceFieldId,
+      marketingSpend,
       filters: {
         managerIds: parseIdList(managerIds),
         sourceIds: parseIdList(sourceIds),

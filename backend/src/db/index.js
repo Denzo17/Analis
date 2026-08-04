@@ -40,6 +40,17 @@ db.exec(`
     PRIMARY KEY (account_id, pipeline_id),
     FOREIGN KEY (account_id) REFERENCES accounts(account_id) ON DELETE CASCADE
   );
+
+  CREATE TABLE IF NOT EXISTS marketing_spend (
+    account_id    INTEGER NOT NULL,
+    pipeline_id   INTEGER NOT NULL,
+    date_from     INTEGER NOT NULL,
+    date_to       INTEGER NOT NULL,
+    amount        REAL NOT NULL,
+    updated_at    INTEGER NOT NULL,
+    PRIMARY KEY (account_id, pipeline_id, date_from, date_to),
+    FOREIGN KEY (account_id) REFERENCES accounts(account_id) ON DELETE CASCADE
+  );
 `);
 
 module.exports = db;

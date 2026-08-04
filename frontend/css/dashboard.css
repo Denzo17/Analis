@@ -160,6 +160,42 @@ html, body {
   font-size: 13px;
 }
 
+/* ---- marketing spend input ---- */
+.la-spend-card {
+  margin-bottom: 16px;
+  padding: 12px 16px;
+}
+
+.la-spend-card__label {
+  display: block;
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+.la-spend-card__row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.la-spend-card__row input {
+  font: inherit;
+  font-size: 14px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface-1);
+  color: var(--text-primary);
+  width: 160px;
+}
+
+.la-spend-card__hint {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
 /* ---- stat tiles ---- */
 .la-tiles {
   display: grid;
