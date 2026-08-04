@@ -18,6 +18,16 @@ try {
   // better-sqlite3 versions until the first write
 }
 
+// marketing_spend moved from "one figure per period" to "one figure per
+// tree node per period" (node_path column) — drop and recreate if an
+// older deploy already created it without that column. This account has
+// only ever stored throwaway test figures for this table, never anything
+// worth preserving across the shape change.
+const existingSpendColumns = db.prepare("PRAGMA table_info(marketing_spend)").all().map((c) => c.name);
+if (existingSpendColumns.length && !existingSpendColumns.includes('node_path')) {
+  db.exec('DROP TABLE marketing_spend');
+}
+
 db.exec(`
   CREATE TABLE IF NOT EXISTS accounts (
     account_id    INTEGER PRIMARY KEY,
@@ -46,9 +56,10 @@ db.exec(`
     pipeline_id   INTEGER NOT NULL,
     date_from     INTEGER NOT NULL,
     date_to       INTEGER NOT NULL,
+    node_path     TEXT NOT NULL,
     amount        REAL NOT NULL,
     updated_at    INTEGER NOT NULL,
-    PRIMARY KEY (account_id, pipeline_id, date_from, date_to),
+    PRIMARY KEY (account_id, pipeline_id, date_from, date_to, node_path),
     FOREIGN KEY (account_id) REFERENCES accounts(account_id) ON DELETE CASCADE
   );
 `);

@@ -123,12 +123,21 @@
   }
 
   // Expandable drill-down table (e.g. Источник клиента → utm_source →
-  // utm_campaign). Each tree node is { label, <stat fields>, children }.
-  // statColumns are the same shape as renderTable's columns, applied to
-  // every level; the first column is always the (indented, expandable)
-  // label. Top level starts expanded, everything below starts collapsed —
-  // matches "показывать общее, раскрывать для глубокого анализа".
-  function renderTree(container, title, labelHeader, statColumns, tree) {
+  // utm_campaign). Each tree node is { label, path, <stat fields>, spend,
+  // cpl, cac, children }. statColumns are the same shape as renderTable's
+  // columns, applied to every level; the first column is always the
+  // (indented, expandable) label. Top level starts expanded, everything
+  // below starts collapsed — matches "показывать общее, раскрывать для
+  // глубокого анализа".
+  //
+  // A column with `editable: true` (the "Затраты" column) renders a number
+  // input instead of static text, prefilled from node.spend/node.path. On
+  // input it recomputes that row's cpl/cac cells immediately client-side
+  // (no round trip — we already have the row's own newCount/saleCount), and
+  // on change it persists via opts.onSpendChange(path, amount) — fire and
+  // forget, no dashboard reload needed since the UI already reflects it.
+  function renderTree(container, title, labelHeader, statColumns, tree, opts) {
+    opts = opts || {};
     container.innerHTML = '';
     var card = el('div', 'la-card');
     if (title) card.appendChild(el('div', 'la-card__title', title));
@@ -182,8 +191,37 @@
         labelTd.appendChild(document.createTextNode(node.label));
         tr.appendChild(labelTd);
 
+        var cplTd = null;
+        var cacTd = null;
         statColumns.forEach(function (col) {
-          tr.appendChild(renderStatCell(col, node[col.key]));
+          if (col.editable) {
+            var td = el('td', 'la-num la-editable-cell');
+            var input = document.createElement('input');
+            input.type = 'number';
+            input.min = '0';
+            input.step = '1';
+            input.className = 'la-tree-spend-input';
+            input.placeholder = '0';
+            if (node.spend != null) input.value = node.spend;
+            input.addEventListener('input', function () {
+              var amount = Number(input.value) || 0;
+              node.spend = amount;
+              node.cpl = amount && node.newCount ? Math.round((amount / node.newCount) * 100) / 100 : null;
+              node.cac = amount && node.saleCount ? Math.round((amount / node.saleCount) * 100) / 100 : null;
+              if (cplTd) cplTd.textContent = formatCurrency(node.cpl);
+              if (cacTd) cacTd.textContent = formatCurrency(node.cac);
+            });
+            input.addEventListener('change', function () {
+              opts.onSpendChange && opts.onSpendChange(node.path, Number(input.value) || 0);
+            });
+            td.appendChild(input);
+            tr.appendChild(td);
+            return;
+          }
+          var cell = renderStatCell(col, node[col.key]);
+          if (col.key === 'cpl') cplTd = cell;
+          if (col.key === 'cac') cacTd = cell;
+          tr.appendChild(cell);
         });
         tbody.appendChild(tr);
 

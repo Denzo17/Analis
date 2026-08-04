@@ -130,58 +130,21 @@
       });
   }
 
-  // Spend is keyed to the exact selected date range (see backend
-  // marketingSpendStore) — save, then reload so cost/cpl/cac everywhere on
-  // the page recompute against the new figure.
-  function renderSpendInput(container, cost) {
-    container.innerHTML = '';
-    var card = document.createElement('div');
-    card.className = 'la-card la-spend-card';
-
-    var label = document.createElement('label');
-    label.textContent = 'Затраты на маркетинг за выбранный период, ₽';
-    label.className = 'la-spend-card__label';
-
-    var row = document.createElement('div');
-    row.className = 'la-spend-card__row';
-
-    var input = document.createElement('input');
-    input.type = 'number';
-    input.min = '0';
-    input.step = '1';
-    input.value = cost && cost.spend ? cost.spend : '';
-    input.placeholder = '0';
-
-    var saveBtn = document.createElement('button');
-    saveBtn.type = 'button';
-    saveBtn.className = 'la-btn la-btn--primary';
-    saveBtn.textContent = 'Сохранить';
-    saveBtn.addEventListener('click', function () {
-      var amount = Number(input.value) || 0;
-      api('/api/marketing-spend', {
-        method: 'POST',
-        body: JSON.stringify({
-          pipelineId: state.pipelineId,
-          dateFrom: state.filters.dateFrom,
-          dateTo: state.filters.dateTo,
-          amount: amount
-        })
-      }).then(loadDashboard);
+  // Saves one tree row's spend figure (keyed by its path + the currently
+  // selected date range — see backend marketingSpendStore). Fire and forget:
+  // the tree already updated that row's cpl/cac locally on input, so there's
+  // nothing to re-render here.
+  function saveNodeSpend(path, amount) {
+    api('/api/marketing-spend', {
+      method: 'POST',
+      body: JSON.stringify({
+        pipelineId: state.pipelineId,
+        dateFrom: state.filters.dateFrom,
+        dateTo: state.filters.dateTo,
+        path: path,
+        amount: amount
+      })
     });
-
-    row.appendChild(input);
-    row.appendChild(saveBtn);
-    card.appendChild(label);
-    card.appendChild(row);
-
-    if (cost && cost.newCount) {
-      var hint = document.createElement('div');
-      hint.className = 'la-spend-card__hint';
-      hint.textContent = 'Лидов «Заявка с сайта» за период: ' + cost.newCount + ', продаж: ' + cost.saleCount;
-      card.appendChild(hint);
-    }
-
-    container.appendChild(card);
   }
 
   function renderDashboard(data) {
@@ -195,10 +158,6 @@
     content.innerHTML = '';
     var design = data.settings.design || {};
     setAccentColor(design.accentColor);
-
-    var spendHost = document.createElement('div');
-    content.appendChild(spendHost);
-    renderSpendInput(spendHost, data.cost);
 
     var tilesHost = document.createElement('div');
     content.appendChild(tilesHost);
@@ -242,9 +201,10 @@
         { key: 'keyToSaleRate', label: 'Ключ → Продажа, %', numeric: true, percent: true, meter: true },
         { key: 'saleCount', label: 'Продажи', numeric: true },
         { key: 'newToSaleRate', label: 'Лид → Продажа, %', numeric: true, percent: true, meter: true },
+        { key: 'spend', label: 'Затраты', editable: true },
         { key: 'cpl', label: 'Цена лида', currency: true },
         { key: 'cac', label: 'Цена клиента', currency: true }
-      ], data.sourceTree);
+      ], data.sourceTree, { onSpendChange: saveNodeSpend });
     }
 
     if (design.showDealsInProgress !== false) {

@@ -142,28 +142,13 @@ function round2(value) {
   return Math.round(value * 100) / 100;
 }
 
-// The account tracks ad spend only for site-originated leads, so cost
-// figures only make sense under this one branch of the "Источник клиента"
-// tree — hardcoded to the exact value the account uses for that field.
+// Used only to pick out the "Заявка с сайта" branch for the top KPI tiles
+// (a convenience summary) — every tree node gets its own editable spend now,
+// not just this one, see buildGroupTree.
 const SITE_LEAD_SOURCE_LABEL = 'Заявка с сайта';
 
 function isSiteLeadSourceLabel(label) {
   return String(label || '').trim().toLowerCase() === SITE_LEAD_SOURCE_LABEL.toLowerCase();
-}
-
-// Attaches cpl/cac (cost per lead / cost per sale) to a tree node and every
-// descendant, all computed against the same total spend — this isn't real
-// per-channel budget attribution (we only have one total spend figure, not
-// a split by campaign), it's "what this segment's leads would cost if the
-// whole budget had gone to it alone", which is still a useful relative
-// efficiency signal between branches.
-function attachCost(node, spend) {
-  if (!node) return;
-  node.cpl = spend && node.newCount ? round2(spend / node.newCount) : null;
-  node.cac = spend && node.saleCount ? round2(spend / node.saleCount) : null;
-  if (node.children) {
-    node.children.forEach((child) => attachCost(child, spend));
-  }
 }
 
 function filterLeads(leads, { managerIds, sourceIds, utmCampaigns, utmFieldId }) {
@@ -235,7 +220,12 @@ function summarizeGroup(leads, keyStageId, saleStageId, stageOrder) {
 // utm_source → utm_campaign" drill-down tree. Each node carries the same
 // stats as the flat per-manager table so every level of the tree is
 // readable on its own, not just the leaves.
-function buildGroupTree(leads, levels, levelIndex, keyStageId, saleStageId, stageOrder) {
+//
+// Every node also gets its own editable spend figure (spendByPath, keyed by
+// the same '›'-joined path the frontend displays/edits), and cpl/cac
+// computed from that node's own spend and its own newCount/saleCount — a
+// real per-node number now that spend isn't a single account-wide figure.
+function buildGroupTree(leads, levels, levelIndex, keyStageId, saleStageId, stageOrder, spendByPath, parentPath) {
   if (levelIndex >= levels.length) return null;
   const level = levels[levelIndex];
   const groups = new Map();
@@ -245,11 +235,20 @@ function buildGroupTree(leads, levels, levelIndex, keyStageId, saleStageId, stag
     groups.get(value).push(lead);
   });
   return Array.from(groups.entries())
-    .map(([label, groupLeads]) => ({
-      label,
-      ...summarizeGroup(groupLeads, keyStageId, saleStageId, stageOrder),
-      children: buildGroupTree(groupLeads, levels, levelIndex + 1, keyStageId, saleStageId, stageOrder)
-    }))
+    .map(([label, groupLeads]) => {
+      const path = parentPath ? `${parentPath}›${label}` : label;
+      const stats = summarizeGroup(groupLeads, keyStageId, saleStageId, stageOrder);
+      const spend = Object.prototype.hasOwnProperty.call(spendByPath, path) ? spendByPath[path] : null;
+      return {
+        label,
+        path,
+        ...stats,
+        spend,
+        cpl: spend && stats.newCount ? round2(spend / stats.newCount) : null,
+        cac: spend && stats.saleCount ? round2(spend / stats.saleCount) : null,
+        children: buildGroupTree(groupLeads, levels, levelIndex + 1, keyStageId, saleStageId, stageOrder, spendByPath, path)
+      };
+    })
     .sort((a, b) => b.newCount - a.newCount);
 }
 
@@ -263,7 +262,7 @@ function buildDashboard({
   utmFieldId,
   utmSourceFieldId,
   clientSourceFieldId,
-  marketingSpend
+  spendByPath
 }) {
   const stageOrder = buildStageOrder(statuses);
   const filterOptions = buildFilterOptions(leads, utmFieldId);
@@ -292,14 +291,11 @@ function buildDashboard({
     { fieldId: utmSourceFieldId, emptyLabel: '(без utm_source)' },
     { fieldId: utmFieldId, emptyLabel: '(без utm_campaign)' }
   ];
-  const sourceTree = buildGroupTree(filtered, sourceTreeLevels, 0, keyStageId, saleStageId, stageOrder);
+  const sourceTree = buildGroupTree(filtered, sourceTreeLevels, 0, keyStageId, saleStageId, stageOrder, spendByPath || {}, '');
 
   const siteLeadNode = sourceTree.find((node) => isSiteLeadSourceLabel(node.label));
-  if (siteLeadNode) {
-    attachCost(siteLeadNode, marketingSpend);
-  }
   const cost = {
-    spend: marketingSpend || 0,
+    spend: siteLeadNode ? siteLeadNode.spend || 0 : 0,
     newCount: siteLeadNode ? siteLeadNode.newCount : 0,
     saleCount: siteLeadNode ? siteLeadNode.saleCount : 0,
     cpl: siteLeadNode ? siteLeadNode.cpl : null,

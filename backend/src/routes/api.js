@@ -61,16 +61,23 @@ router.post('/settings', (req, res) => {
 
 router.post('/marketing-spend', (req, res) => {
   const { accountId } = req.session;
-  const { pipelineId, dateFrom, dateTo, amount } = req.body || {};
+  const { pipelineId, dateFrom, dateTo, path, amount } = req.body || {};
   const pipelineIdNum = Number(pipelineId);
   const dateFromNum = Math.floor(Number(dateFrom));
   const dateToNum = Math.floor(Number(dateTo));
   const amountNum = Number(amount);
-  if (!pipelineIdNum || !Number.isFinite(dateFromNum) || !Number.isFinite(dateToNum) || !Number.isFinite(amountNum) || amountNum < 0) {
+  if (
+    !pipelineIdNum ||
+    !Number.isFinite(dateFromNum) ||
+    !Number.isFinite(dateToNum) ||
+    !path ||
+    !Number.isFinite(amountNum) ||
+    amountNum < 0
+  ) {
     res.status(400).json({ error: 'invalid_params' });
     return;
   }
-  marketingSpendStore.saveSpend(accountId, pipelineIdNum, dateFromNum, dateToNum, amountNum);
+  marketingSpendStore.saveSpend(accountId, pipelineIdNum, dateFromNum, dateToNum, String(path), amountNum);
   res.json({ amount: amountNum });
 });
 
@@ -109,9 +116,9 @@ router.get('/dashboard/summary', async (req, res) => {
     const utmFieldId = analytics.findUtmCampaignFieldId(customFields);
     const utmSourceFieldId = analytics.findUtmSourceFieldId(customFields);
     const clientSourceFieldId = analytics.findClientSourceFieldId(customFields);
-    const marketingSpend = dateFromNum && dateToNum
-      ? marketingSpendStore.getSpend(accountId, pipelineId, dateFromNum, dateToNum)
-      : 0;
+    const spendByPath = dateFromNum && dateToNum
+      ? marketingSpendStore.getSpendMap(accountId, pipelineId, dateFromNum, dateToNum)
+      : {};
 
     const dashboard = analytics.buildDashboard({
       leads,
@@ -122,7 +129,7 @@ router.get('/dashboard/summary', async (req, res) => {
       utmFieldId,
       utmSourceFieldId,
       clientSourceFieldId,
-      marketingSpend,
+      spendByPath,
       filters: {
         managerIds: parseIdList(managerIds),
         sourceIds: parseIdList(sourceIds),
