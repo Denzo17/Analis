@@ -19,6 +19,11 @@
         var d = new Date();
         var monthStart = Math.floor(new Date(d.getFullYear(), d.getMonth(), 1).getTime() / 1000);
         return { from: monthStart, to: now };
+      case 'lastMonth':
+        var today = new Date();
+        var lastMonthStart = Math.floor(new Date(today.getFullYear(), today.getMonth() - 1, 1).getTime() / 1000);
+        var thisMonthStart = Math.floor(new Date(today.getFullYear(), today.getMonth(), 1).getTime() / 1000);
+        return { from: lastMonthStart, to: thisMonthStart - 1 };
       default:
         return null;
     }
@@ -89,6 +94,7 @@
       ['last7', 'Последние 7 дней'],
       ['today', 'Сегодня'],
       ['month', 'С начала месяца'],
+      ['lastMonth', 'Прошлый месяц'],
       ['last90', 'Последние 90 дней'],
       ['custom', 'Произвольный период']
     ].forEach(function (pair) {
