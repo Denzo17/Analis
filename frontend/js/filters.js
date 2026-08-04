@@ -3,9 +3,20 @@
 
   var DAY = 24 * 60 * 60;
 
+  // All day-boundary math goes through this — midnight in the *browser's*
+  // local time zone, not UTC. Plain `timestamp % DAY` arithmetic (the old
+  // approach for today/last7/30/90) silently computes UTC-day boundaries
+  // instead, which drifted against "С начала месяца"/"Прошлый месяц"
+  // (already local-time via the numeric Date constructor) and against the
+  // custom-range inputs below by exactly the timezone offset — off by one
+  // lead near midnight depending which preset you picked.
+  function localDayStart(date) {
+    return Math.floor(new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime() / 1000);
+  }
+
   function presetRange(key) {
     var now = Math.floor(Date.now() / 1000);
-    var todayStart = now - (now % DAY);
+    var todayStart = localDayStart(new Date());
     switch (key) {
       case 'today':
         return { from: todayStart, to: now };
@@ -27,6 +38,28 @@
       default:
         return null;
     }
+  }
+
+  // <input type="date">'s value is "YYYY-MM-DD" with no time component —
+  // passed straight to `new Date(string)`, JS parses date-only ISO strings
+  // as UTC midnight, not local midnight, which is what silently caused the
+  // "Прошлый месяц" vs. manually typing the same 01.07–31.07 range to
+  // disagree by one lead. Parsing the parts ourselves keeps it local,
+  // consistent with every preset above.
+  function parseDateInputLocal(value) {
+    if (!value) return null;
+    var parts = value.split('-');
+    return Math.floor(new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2])).getTime() / 1000);
+  }
+
+  // The inverse — same local-vs-UTC trap in reverse: `.toISOString()` would
+  // render a local midnight timestamp as the *previous* day whenever the
+  // browser is ahead of UTC.
+  function formatDateInputLocal(timestamp) {
+    var d = new Date(timestamp * 1000);
+    var mm = String(d.getMonth() + 1).padStart(2, '0');
+    var dd = String(d.getDate()).padStart(2, '0');
+    return d.getFullYear() + '-' + mm + '-' + dd;
   }
 
   function el(tag, className) {
@@ -111,8 +144,8 @@
     fromInput.type = 'date';
     var toInput = document.createElement('input');
     toInput.type = 'date';
-    if (opts.current.dateFrom) fromInput.value = new Date(opts.current.dateFrom * 1000).toISOString().slice(0, 10);
-    if (opts.current.dateTo) toInput.value = new Date(opts.current.dateTo * 1000).toISOString().slice(0, 10);
+    if (opts.current.dateFrom) fromInput.value = formatDateInputLocal(opts.current.dateFrom);
+    if (opts.current.dateTo) toInput.value = formatDateInputLocal(opts.current.dateTo);
     var customWrap = el('div', 'la-filter');
     customWrap.style.display = opts.current.datePreset === 'custom' ? 'flex' : 'none';
     var customLabel = el('label');
@@ -130,8 +163,9 @@
       customWrap.style.display = preset === 'custom' ? 'flex' : 'none';
       var range;
       if (preset === 'custom') {
-        var from = fromInput.value ? Math.floor(new Date(fromInput.value).getTime() / 1000) : null;
-        var to = toInput.value ? Math.floor(new Date(toInput.value).getTime() / 1000) + DAY - 1 : null;
+        var from = parseDateInputLocal(fromInput.value);
+        var toStart = parseDateInputLocal(toInput.value);
+        var to = toStart != null ? toStart + DAY - 1 : null;
         range = { from: from, to: to };
       } else {
         range = presetRange(preset);
