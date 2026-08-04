@@ -20,6 +20,15 @@
     var headers = Object.assign({ Authorization: 'Bearer ' + session.token }, opts.headers || {});
     if (opts.body) headers['Content-Type'] = 'application/json';
     return fetch(path, Object.assign({}, opts, { headers: headers })).then(function (res) {
+      if (res.status === 401) {
+        // The 1h dashboard session token (issued when this page was loaded)
+        // expired — likely just a tab left open. Reload gets a fresh one
+        // from the still-valid 30-day login cookie without asking for the
+        // password again. Retrying the same request would only repeat this
+        // error, since session.token in memory never changes on its own.
+        window.location.reload();
+        return new Promise(function () {}); // reload is navigating away — don't resolve into stale UI code
+      }
       if (!res.ok) {
         return res.json().catch(function () { return {}; }).then(function (body) {
           var err = new Error(body.error || ('http_' + res.status));
