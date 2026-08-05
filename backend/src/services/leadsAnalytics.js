@@ -165,17 +165,26 @@ function extractStatusIdFromEvent(event) {
   return null;
 }
 
+// TEMPORARY diagnostics — remove once confirmed against a live account.
+// Search server logs for "[avg-sale-cycle-debug]".
+const DEBUG_SALE_CYCLE = true;
+
 // Average number of days between a lead's creation and the first time it
 // reached saleStageId, over exactly the leads passed in (the caller decides
 // the cohort — see buildDashboard's saleLeads, the same set as the
 // "Продажи" tile). Requires one batched events lookup; returns null when
 // there's nothing to average (no sales, or no matching events found).
-// TEMPORARY diagnostics — remove once the /api/v4/events shape is confirmed
-// against a live account. Search server logs for "[avg-sale-cycle-debug]".
-const DEBUG_SALE_CYCLE = true;
-
-async function computeAvgSaleCycleDays(accountId, saleLeads, saleStageId) {
-  if (!saleLeads || !saleLeads.length || !saleStageId) return null;
+//
+// A lead can jump straight past saleStageId in a single drag (e.g. status A
+// -> C, skipping B) — it never has an event landing exactly on B, even
+// though it did pass through that point in the funnel. So "reached" here
+// uses the exact same stage-order comparison as reachedStage() (current
+// status county >= saleStageId, or won) applied to each event's new status,
+// not an exact id match — otherwise leads that got fast-tracked past the
+// sale stage would silently drop out of the average instead of counting
+// with their real (earlier) crossing point.
+async function computeAvgSaleCycleDays(accountId, saleLeads, saleStageId, stageOrder) {
+  if (!saleLeads || !saleLeads.length || !saleStageId || !stageOrder) return null;
 
   const events = await fetchStatusChangeEvents(accountId, saleLeads.map((l) => l.id));
 
@@ -183,16 +192,16 @@ async function computeAvgSaleCycleDays(accountId, saleLeads, saleStageId) {
     console.log('[avg-sale-cycle-debug] saleLeads:', JSON.stringify(saleLeads));
     console.log('[avg-sale-cycle-debug] saleStageId:', saleStageId);
     console.log('[avg-sale-cycle-debug] events fetched:', events.length);
-    console.log('[avg-sale-cycle-debug] sample events:', JSON.stringify(events.slice(0, 5), null, 2));
   }
 
   const firstReachedAt = new Map();
   events.forEach((event) => {
     const extracted = extractStatusIdFromEvent(event);
+    const counts = extracted != null && reachedStage({ status_id: extracted }, saleStageId, stageOrder);
     if (DEBUG_SALE_CYCLE) {
-      console.log('[avg-sale-cycle-debug] event type=%s entity_id=%s extractedStatusId=%s created_at=%s', event.type, event.entity_id, extracted, event.created_at);
+      console.log('[avg-sale-cycle-debug] entity_id=%s extractedStatusId=%s counted=%s created_at=%s', event.entity_id, extracted, counts, event.created_at);
     }
-    if (extracted !== saleStageId) return;
+    if (!counts) return;
     const leadId = event.entity_id;
     const ts = event.created_at;
     const existing = firstReachedAt.get(leadId);
@@ -457,6 +466,7 @@ module.exports = {
   findUtmSourceFieldId,
   findClientSourceFieldId,
   fetchLeadsInRange,
+  buildStageOrder,
   buildDashboard,
   computeAvgSaleCycleDays,
   WON_STATUS_ID,

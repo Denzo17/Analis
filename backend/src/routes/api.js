@@ -137,7 +137,8 @@ router.get('/dashboard/summary', async (req, res) => {
       }
     });
 
-    const avgSaleCycleDays = await analytics.computeAvgSaleCycleDays(accountId, dashboard.saleLeads, settings.saleStageId);
+    const stageOrder = analytics.buildStageOrder(pipeline.statuses);
+    const avgSaleCycleDays = await analytics.computeAvgSaleCycleDays(accountId, dashboard.saleLeads, settings.saleStageId, stageOrder);
 
     res.json({
       pipeline: { id: pipeline.id, name: pipeline.name, statuses: pipeline.statuses },
