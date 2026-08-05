@@ -6,7 +6,8 @@ const DEFAULT_DESIGN = {
   showManagerTable: true,
   showSourceTree: true,
   showFunnelChart: true,
-  showDealsInProgress: true
+  showDealsInProgress: true,
+  showDealsWon: true
 };
 
 const getStmt = db.prepare('SELECT * FROM dashboard_settings WHERE account_id = ? AND pipeline_id = ?');

@@ -79,7 +79,8 @@
       ['showFunnelChart', 'Воронка конверсии'],
       ['showManagerTable', 'Таблица по менеджерам'],
       ['showSourceTree', 'Источник клиента → utm_source → utm_campaign'],
-      ['showDealsInProgress', 'Сделки в работе']
+      ['showDealsInProgress', 'Сделки в работе'],
+      ['showDealsWon', 'Успешные сделки']
     ];
     var blockCheckboxes = {};
     blockDefs.forEach(function (pair) {
@@ -114,7 +115,8 @@
         showFunnelChart: blockCheckboxes.showFunnelChart.checked,
         showManagerTable: blockCheckboxes.showManagerTable.checked,
         showSourceTree: blockCheckboxes.showSourceTree.checked,
-        showDealsInProgress: blockCheckboxes.showDealsInProgress.checked
+        showDealsInProgress: blockCheckboxes.showDealsInProgress.checked,
+        showDealsWon: blockCheckboxes.showDealsWon.checked
       };
       opts.onSave({
         keyStageId: keyStage.select.value ? Number(keyStage.select.value) : null,

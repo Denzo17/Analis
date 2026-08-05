@@ -480,23 +480,32 @@ function buildDashboard({
     .sort((a, b) => b.value - a.value);
 
   const statusNameById = new Map(statuses.map((s) => [s.id, s.name]));
+  const toDealRow = (l) => ({
+    id: l.id,
+    name: l.name,
+    responsibleUserId: l.responsible_user_id,
+    responsibleUserName: userNameById.get(l.responsible_user_id) || '',
+    statusId: l.status_id,
+    statusName: statusNameById.get(l.status_id) || '',
+    sourceName: (l._embedded && l._embedded.source && l._embedded.source.name) || '',
+    utmCampaign: getCustomFieldValue(l, utmFieldId) || '',
+    createdAt: l.created_at,
+    price: l.price || 0
+  });
+
   const dealsInProgress = filtered
     .filter((l) => l.status_id !== WON_STATUS_ID && l.status_id !== LOST_STATUS_ID)
     .sort((a, b) => b.created_at - a.created_at)
-    .map((l) => ({
-      id: l.id,
-      name: l.name,
-      responsibleUserId: l.responsible_user_id,
-      responsibleUserName: userNameById.get(l.responsible_user_id) || '',
-      statusId: l.status_id,
-      statusName: statusNameById.get(l.status_id) || '',
-      sourceName: (l._embedded && l._embedded.source && l._embedded.source.name) || '',
-      utmCampaign: getCustomFieldValue(l, utmFieldId) || '',
-      createdAt: l.created_at,
-      price: l.price || 0
-    }));
+    .map(toDealRow);
 
-  return { overall, managerBreakdown, sourceTree, dealsInProgress, filterOptions, cost, lossReasons };
+  // Same cohort as the "Продажи" tile/rate (reached saleStageId), not just
+  // amoCRM's own WON status — saleStageId can be an earlier custom stage.
+  const dealsWon = filtered
+    .filter((l) => reachedStage(l, saleStageId, stageOrder))
+    .sort((a, b) => b.created_at - a.created_at)
+    .map(toDealRow);
+
+  return { overall, managerBreakdown, sourceTree, dealsInProgress, dealsWon, filterOptions, cost, lossReasons };
 }
 
 module.exports = {

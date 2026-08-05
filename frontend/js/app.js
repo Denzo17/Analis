@@ -228,6 +228,19 @@
         { key: 'price', label: 'Бюджет', numeric: true }
       ], data.dealsInProgress.slice(0, 50));
     }
+
+    if (design.showDealsWon !== false) {
+      var dealsWonHost = document.createElement('div');
+      content.appendChild(dealsWonHost);
+      window.LA.charts.renderTable(dealsWonHost, 'Успешные сделки (' + data.overall.saleCount + ')', [
+        { key: 'name', label: 'Сделка' },
+        { key: 'responsibleUserName', label: 'Ответственный' },
+        { key: 'statusName', label: 'Статус' },
+        { key: 'sourceName', label: 'Источник' },
+        { key: 'utmCampaign', label: 'utm_campaign' },
+        { key: 'price', label: 'Бюджет', numeric: true }
+      ], data.dealsWon.slice(0, 50));
+    }
   }
 
   function loadDashboard() {
