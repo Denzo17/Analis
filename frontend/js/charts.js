@@ -21,7 +21,12 @@
     return new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', maximumFractionDigits: 0 }).format(value);
   }
 
-  // tiles: [{ label, value, isPercent, isCurrency, accent }]
+  function formatDays(value) {
+    if (value == null) return '—';
+    return (Math.round(value * 10) / 10).toLocaleString('ru-RU') + ' дн.';
+  }
+
+  // tiles: [{ label, value, isPercent, isCurrency, isDays, accent }]
   function renderTiles(container, tiles) {
     container.innerHTML = '';
     var wrap = el('div', 'la-tiles');
@@ -29,7 +34,10 @@
       var box = el('div', 'la-tile');
       box.appendChild(el('div', 'la-tile__label', tile.label));
       var valueEl = el('div', 'la-tile__value' + (tile.accent ? ' la-tile__value--accent' : ''));
-      valueEl.textContent = tile.isCurrency ? formatCurrency(tile.value) : (tile.isPercent ? formatPercent(tile.value) : formatNumber(tile.value));
+      valueEl.textContent = tile.isCurrency ? formatCurrency(tile.value)
+        : tile.isDays ? formatDays(tile.value)
+        : tile.isPercent ? formatPercent(tile.value)
+        : formatNumber(tile.value);
       box.appendChild(valueEl);
       wrap.appendChild(box);
     });
@@ -289,7 +297,8 @@
     { key: 'in_progress', label: 'В работе' },
     { key: 'lost', label: 'Отказ' },
     { key: 'cost_per_lead', label: 'Цена лида (сайт)', isCurrency: true },
-    { key: 'cost_per_sale', label: 'Цена клиента (сайт)', isCurrency: true }
+    { key: 'cost_per_sale', label: 'Цена клиента (сайт)', isCurrency: true },
+    { key: 'avg_sale_cycle', label: 'Средний цикл сделки', isDays: true }
   ];
 
   LA.charts = {

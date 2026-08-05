@@ -2,7 +2,7 @@ const db = require('../db');
 
 const DEFAULT_DESIGN = {
   accentColor: '#2E6BE6',
-  visibleTiles: ['new_leads', 'key_stage', 'key_stage_rate', 'sale', 'sale_rate_from_key', 'sale_rate_from_new', 'cost_per_lead', 'cost_per_sale'],
+  visibleTiles: ['new_leads', 'key_stage', 'key_stage_rate', 'sale', 'sale_rate_from_key', 'sale_rate_from_new', 'cost_per_lead', 'cost_per_sale', 'avg_sale_cycle'],
   showManagerTable: true,
   showSourceTree: true,
   showFunnelChart: true,

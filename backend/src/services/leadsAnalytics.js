@@ -120,6 +120,84 @@ async function fetchLeadsInRange(accountId, { pipelineId, dateFrom, dateTo }) {
   return leads;
 }
 
+const EVENT_PAGE_LIMIT = 250;
+const MAX_EVENT_PAGES = 50;
+const EVENT_BATCH_SIZE = 50; // leads per /api/v4/events request (query-string size headroom)
+
+// Batched history lookup: for a set of lead ids, fetch every
+// lead_status_changed event across all of them. amoCRM's events endpoint
+// accepts filter[entity_id] as an array, so this is a handful of requests
+// (leads.length / 50), not one request per lead.
+async function fetchStatusChangeEvents(accountId, leadIds) {
+  const events = [];
+  for (let i = 0; i < leadIds.length; i += EVENT_BATCH_SIZE) {
+    const chunk = leadIds.slice(i, i + EVENT_BATCH_SIZE);
+    for (let page = 1; page <= MAX_EVENT_PAGES; page += 1) {
+      const query = {
+        limit: EVENT_PAGE_LIMIT,
+        page,
+        'filter[type]': 'lead_status_changed',
+        'filter[entity]': 'lead',
+        'filter[entity_id]': chunk
+      };
+      const data = await amocrm.apiRequest(accountId, '/api/v4/events', { query });
+      const batch = (data && data._embedded && data._embedded.events) || [];
+      events.push(...batch);
+      if (!data || !data._links || !data._links.next) {
+        break;
+      }
+    }
+  }
+  return events;
+}
+
+// amoCRM's event value_after for a status change is documented as an array
+// (mirrors value_before) — defensively also accept a bare object in case
+// that ever changes, same approach as getLossReasonName above.
+function extractStatusIdFromEvent(event) {
+  const after = event && event.value_after;
+  if (!after) return null;
+  const list = Array.isArray(after) ? after : [after];
+  for (const item of list) {
+    const status = item && (item.lead_status || item.status);
+    if (status && status.id != null) return status.id;
+  }
+  return null;
+}
+
+// Average number of days between a lead's creation and the first time it
+// reached saleStageId, over exactly the leads passed in (the caller decides
+// the cohort — see buildDashboard's saleLeads, the same set as the
+// "Продажи" tile). Requires one batched events lookup; returns null when
+// there's nothing to average (no sales, or no matching events found).
+async function computeAvgSaleCycleDays(accountId, saleLeads, saleStageId) {
+  if (!saleLeads || !saleLeads.length || !saleStageId) return null;
+
+  const events = await fetchStatusChangeEvents(accountId, saleLeads.map((l) => l.id));
+  const firstReachedAt = new Map();
+  events.forEach((event) => {
+    if (extractStatusIdFromEvent(event) !== saleStageId) return;
+    const leadId = event.entity_id;
+    const ts = event.created_at;
+    const existing = firstReachedAt.get(leadId);
+    if (existing === undefined || ts < existing) {
+      firstReachedAt.set(leadId, ts);
+    }
+  });
+
+  const durationsInDays = [];
+  saleLeads.forEach((lead) => {
+    const reachedAt = firstReachedAt.get(lead.id);
+    if (reachedAt == null) return; // no matching event found for this lead — skip rather than guess
+    const days = (reachedAt - lead.createdAt) / 86400;
+    if (days >= 0) durationsInDays.push(days);
+  });
+
+  if (!durationsInDays.length) return null;
+  const avg = durationsInDays.reduce((a, b) => a + b, 0) / durationsInDays.length;
+  return Math.round(avg * 10) / 10;
+}
+
 function buildStageOrder(statuses) {
   const regular = statuses
     .filter((s) => s.id !== WON_STATUS_ID && s.id !== LOST_STATUS_ID)
@@ -325,6 +403,10 @@ function buildDashboard({
     .map(([label, value]) => ({ label, value }))
     .sort((a, b) => b.value - a.value);
 
+  const saleLeads = filtered
+    .filter((l) => reachedStage(l, saleStageId, stageOrder))
+    .map((l) => ({ id: l.id, createdAt: l.created_at }));
+
   const statusNameById = new Map(statuses.map((s) => [s.id, s.name]));
   const dealsInProgress = filtered
     .filter((l) => l.status_id !== WON_STATUS_ID && l.status_id !== LOST_STATUS_ID)
@@ -342,7 +424,7 @@ function buildDashboard({
       price: l.price || 0
     }));
 
-  return { overall, managerBreakdown, sourceTree, dealsInProgress, filterOptions, cost, lossReasons };
+  return { overall, managerBreakdown, sourceTree, dealsInProgress, filterOptions, cost, lossReasons, saleLeads };
 }
 
 module.exports = {
@@ -356,6 +438,7 @@ module.exports = {
   findClientSourceFieldId,
   fetchLeadsInRange,
   buildDashboard,
+  computeAvgSaleCycleDays,
   WON_STATUS_ID,
   LOST_STATUS_ID
 };

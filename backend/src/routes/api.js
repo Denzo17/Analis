@@ -137,7 +137,14 @@ router.get('/dashboard/summary', async (req, res) => {
       }
     });
 
-    res.json({ pipeline: { id: pipeline.id, name: pipeline.name, statuses: pipeline.statuses }, settings, ...dashboard });
+    const avgSaleCycleDays = await analytics.computeAvgSaleCycleDays(accountId, dashboard.saleLeads, settings.saleStageId);
+
+    res.json({
+      pipeline: { id: pipeline.id, name: pipeline.name, statuses: pipeline.statuses },
+      settings,
+      ...dashboard,
+      avgSaleCycleDays
+    });
   } catch (err) {
     console.error('GET /dashboard/summary failed', err);
     res.status(502).json({ error: 'amocrm_request_failed', message: err.message });

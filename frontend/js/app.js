@@ -101,7 +101,7 @@
     content.appendChild(box);
   }
 
-  function buildTileData(overall, design, cost) {
+  function buildTileData(overall, design, cost, avgSaleCycleDays) {
     var byKey = {
       new_leads: overall.newCount,
       key_stage: overall.keyCount,
@@ -110,7 +110,8 @@
       sale_rate_from_key: overall.keyToSaleRate,
       sale_rate_from_new: overall.newToSaleRate,
       in_progress: overall.inProgressCount,
-      lost: overall.lostCount
+      lost: overall.lostCount,
+      avg_sale_cycle: avgSaleCycleDays
     };
     if (cost) {
       byKey.cost_per_lead = cost.cpl;
@@ -125,6 +126,7 @@
           value: byKey[def.key],
           isPercent: !!def.isPercent,
           isCurrency: !!def.isCurrency,
+          isDays: !!def.isDays,
           accent: def.key === 'new_leads'
         };
       });
@@ -161,7 +163,7 @@
 
     var tilesHost = document.createElement('div');
     content.appendChild(tilesHost);
-    window.LA.charts.renderTiles(tilesHost, buildTileData(data.overall, design, data.cost));
+    window.LA.charts.renderTiles(tilesHost, buildTileData(data.overall, design, data.cost, data.avgSaleCycleDays));
 
     if (design.showFunnelChart !== false) {
       var funnelHost = document.createElement('div');
