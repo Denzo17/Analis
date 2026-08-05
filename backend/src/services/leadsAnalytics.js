@@ -85,6 +85,19 @@ function getCustomFieldValue(lead, fieldId) {
   return field.values[0].value || null;
 }
 
+// amoCRM's `with=loss_reason` embed comes back as an array
+// (`_embedded.loss_reason: [{id, name}]`), not a single object like
+// `_embedded.source` — reading `.name` straight off it silently returns
+// undefined for every lead, which is exactly why every lost lead was
+// showing up as "(без причины)" regardless of what was actually set in
+// amoCRM. Handle both shapes defensively in case that ever changes.
+function getLossReasonName(lead) {
+  const raw = lead._embedded && lead._embedded.loss_reason;
+  if (!raw) return null;
+  const reason = Array.isArray(raw) ? raw[0] : raw;
+  return (reason && reason.name) || null;
+}
+
 async function fetchLeadsInRange(accountId, { pipelineId, dateFrom, dateTo }) {
   const leads = [];
   for (let page = 1; page <= MAX_PAGES; page += 1) {
@@ -305,7 +318,7 @@ function buildDashboard({
   const lossReasonCounts = new Map();
   filtered.forEach((lead) => {
     if (lead.status_id !== LOST_STATUS_ID) return;
-    const reason = (lead._embedded && lead._embedded.loss_reason && lead._embedded.loss_reason.name) || '(без причины)';
+    const reason = getLossReasonName(lead) || '(без причины)';
     lossReasonCounts.set(reason, (lossReasonCounts.get(reason) || 0) + 1);
   });
   const lossReasons = Array.from(lossReasonCounts.entries())
