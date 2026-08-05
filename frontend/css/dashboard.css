@@ -267,7 +267,7 @@ html, body {
 
 .la-bar-row {
   display: grid;
-  grid-template-columns: 140px 1fr 70px;
+  grid-template-columns: 140px 1fr 110px;
   align-items: center;
   gap: 10px;
   font-size: 12px;
@@ -281,7 +281,7 @@ html, body {
 }
 
 .la-bar-row--child {
-  grid-template-columns: 140px 1fr 70px;
+  grid-template-columns: 140px 1fr 110px;
   padding-left: 20px;
   opacity: 0.85;
 }
@@ -305,6 +305,7 @@ html, body {
   text-align: right;
   font-variant-numeric: tabular-nums;
   color: var(--text-primary);
+  white-space: nowrap;
 }
 
 /* ---- tables ---- */

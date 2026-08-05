@@ -52,7 +52,7 @@
     var max = Math.max.apply(null, steps.map(function (s) { return s.value; }).concat([1]));
     var expanded = {};
 
-    function appendBarRow(host, label, value, localMax, color, extraClass) {
+    function appendBarRow(host, label, value, localMax, color, extraClass, shareOfParent) {
       var row = el('div', 'la-bar-row' + (extraClass ? ' ' + extraClass : ''));
       row.appendChild(el('div', 'la-bar-row__label', label));
       var track = el('div', 'la-bar-track');
@@ -62,7 +62,11 @@
       fill.style.background = color;
       track.appendChild(fill);
       row.appendChild(track);
-      row.appendChild(el('div', 'la-bar-row__value', formatNumber(value)));
+      var valueText = formatNumber(value);
+      if (shareOfParent != null) {
+        valueText += ' (' + formatPercent(shareOfParent) + ')';
+      }
+      row.appendChild(el('div', 'la-bar-row__value', valueText));
       host.appendChild(row);
       return row;
     }
@@ -87,7 +91,8 @@
         if (hasChildren && expanded[idx]) {
           var childMax = Math.max.apply(null, step.children.map(function (c) { return c.value; }).concat([1]));
           step.children.forEach(function (child) {
-            appendBarRow(bars, child.label, child.value, childMax, step.color, 'la-bar-row--child');
+            var shareOfParent = step.value > 0 ? (child.value / step.value) * 100 : 0;
+            appendBarRow(bars, child.label, child.value, childMax, step.color, 'la-bar-row--child', shareOfParent);
           });
         }
       });
