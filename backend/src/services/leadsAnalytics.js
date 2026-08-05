@@ -170,13 +170,29 @@ function extractStatusIdFromEvent(event) {
 // the cohort — see buildDashboard's saleLeads, the same set as the
 // "Продажи" tile). Requires one batched events lookup; returns null when
 // there's nothing to average (no sales, or no matching events found).
+// TEMPORARY diagnostics — remove once the /api/v4/events shape is confirmed
+// against a live account. Search server logs for "[avg-sale-cycle-debug]".
+const DEBUG_SALE_CYCLE = true;
+
 async function computeAvgSaleCycleDays(accountId, saleLeads, saleStageId) {
   if (!saleLeads || !saleLeads.length || !saleStageId) return null;
 
   const events = await fetchStatusChangeEvents(accountId, saleLeads.map((l) => l.id));
+
+  if (DEBUG_SALE_CYCLE) {
+    console.log('[avg-sale-cycle-debug] saleLeads:', JSON.stringify(saleLeads));
+    console.log('[avg-sale-cycle-debug] saleStageId:', saleStageId);
+    console.log('[avg-sale-cycle-debug] events fetched:', events.length);
+    console.log('[avg-sale-cycle-debug] sample events:', JSON.stringify(events.slice(0, 5), null, 2));
+  }
+
   const firstReachedAt = new Map();
   events.forEach((event) => {
-    if (extractStatusIdFromEvent(event) !== saleStageId) return;
+    const extracted = extractStatusIdFromEvent(event);
+    if (DEBUG_SALE_CYCLE) {
+      console.log('[avg-sale-cycle-debug] event type=%s entity_id=%s extractedStatusId=%s created_at=%s', event.type, event.entity_id, extracted, event.created_at);
+    }
+    if (extracted !== saleStageId) return;
     const leadId = event.entity_id;
     const ts = event.created_at;
     const existing = firstReachedAt.get(leadId);
@@ -192,6 +208,10 @@ async function computeAvgSaleCycleDays(accountId, saleLeads, saleStageId) {
     const days = (reachedAt - lead.createdAt) / 86400;
     if (days >= 0) durationsInDays.push(days);
   });
+
+  if (DEBUG_SALE_CYCLE) {
+    console.log('[avg-sale-cycle-debug] durationsInDays:', JSON.stringify(durationsInDays));
+  }
 
   if (!durationsInDays.length) return null;
   const avg = durationsInDays.reduce((a, b) => a + b, 0) / durationsInDays.length;
