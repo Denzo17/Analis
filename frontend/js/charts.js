@@ -36,14 +36,16 @@
     container.appendChild(wrap);
   }
 
-  // steps: [{ label, value, color, children? }]. Bars are scaled against the
-  // first (largest / "new leads") step, matching the read-top-to-bottom
-  // funnel convention from the reference dashboard. A step with `children`
-  // ([{label, value}], e.g. loss reasons under "Отказ") gets an expand
-  // arrow; its children render as smaller indented bars scaled against
-  // their own max (their counts are usually much smaller than the funnel
-  // steps, so scaling them against the same max as the parent would make
-  // them unreadably thin).
+  // steps: [{ label, value, color, children?, sharePercent? }]. Bars are
+  // scaled against the first (largest / "new leads") step, matching the
+  // read-top-to-bottom funnel convention from the reference dashboard. A
+  // step with `children` ([{label, value}], e.g. loss reasons under
+  // "Отказ") gets an expand arrow; its children render as smaller indented
+  // bars scaled against their own max (their counts are usually much
+  // smaller than the funnel steps, so scaling them against the same max as
+  // the parent would make them unreadably thin) and show what share of the
+  // parent's own value they are. `sharePercent` on a top-level step (e.g.
+  // Отказ's share of Новые лиды) shows the same way, next to its count.
   function renderFunnel(container, title, steps) {
     container.innerHTML = '';
     var card = el('div', 'la-card');
@@ -75,7 +77,7 @@
       bars.innerHTML = '';
       steps.forEach(function (step, idx) {
         var hasChildren = step.children && step.children.length > 0;
-        var row = appendBarRow(bars, null, step.value, max, step.color);
+        var row = appendBarRow(bars, null, step.value, max, step.color, null, step.sharePercent);
         var labelCell = row.querySelector('.la-bar-row__label');
         if (hasChildren) {
           var toggle = el('button', 'la-tree-toggle', expanded[idx] ? '▾' : '▸');

@@ -169,11 +169,18 @@
       var pipeline = currentPipeline();
       var keyStatus = pipeline.statuses.find(function (s) { return s.id === data.settings.keyStageId; });
       var saleStatus = pipeline.statuses.find(function (s) { return s.id === data.settings.saleStageId; });
+      var lostSharePercent = data.overall.newCount ? (data.overall.lostCount / data.overall.newCount) * 100 : 0;
       window.LA.charts.renderFunnel(funnelHost, 'Воронка конверсии', [
         { label: 'Новые лиды', value: data.overall.newCount, color: 'var(--series-1)' },
         { label: (keyStatus && keyStatus.name) || 'Ключевой этап', value: data.overall.keyCount, color: 'var(--series-2)' },
         { label: (saleStatus && saleStatus.name) || 'Продажа', value: data.overall.saleCount, color: 'var(--series-3)' },
-        { label: 'Отказ', value: data.overall.lostCount, color: 'var(--status-critical)', children: data.lossReasons }
+        {
+          label: 'Отказ',
+          value: data.overall.lostCount,
+          color: 'var(--status-critical)',
+          children: data.lossReasons,
+          sharePercent: lostSharePercent
+        }
       ]);
     }
 
