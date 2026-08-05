@@ -122,33 +122,62 @@ async function fetchLeadsInRange(accountId, { pipelineId, dateFrom, dateTo }) {
 
 const EVENT_PAGE_LIMIT = 250;
 const MAX_EVENT_PAGES = 50;
-const EVENT_BATCH_SIZE = 50; // leads per /api/v4/events request (query-string size headroom)
+const ID_BATCH_SIZE = 50; // ids per request (query-string size headroom)
 
-// Batched history lookup: for a set of lead ids, fetch every
-// lead_status_changed event across all of them. amoCRM's events endpoint
-// accepts filter[entity_id] as an array, so this is a handful of requests
-// (leads.length / 50), not one request per lead.
-async function fetchStatusChangeEvents(accountId, leadIds) {
+// Every lead_status_changed event across the whole account within a date
+// range, regardless of which lead it belongs to — used to find leads that
+// crossed into the sale stage *during this period*, even if they were
+// created long before it. Not scoped by pipeline in the request itself:
+// amoCRM status ids are unique per pipeline account-wide, so matching a
+// specific pipeline's saleStageId (via reachedStage against that pipeline's
+// own stageOrder) already excludes every other pipeline's events without an
+// extra filter.
+async function fetchStatusChangeEventsInRange(accountId, { dateFrom, dateTo }) {
   const events = [];
-  for (let i = 0; i < leadIds.length; i += EVENT_BATCH_SIZE) {
-    const chunk = leadIds.slice(i, i + EVENT_BATCH_SIZE);
-    for (let page = 1; page <= MAX_EVENT_PAGES; page += 1) {
+  for (let page = 1; page <= MAX_EVENT_PAGES; page += 1) {
+    const query = {
+      limit: EVENT_PAGE_LIMIT,
+      page,
+      'filter[type]': 'lead_status_changed',
+      'filter[entity]': 'lead'
+    };
+    if (dateFrom) query['filter[created_at][from]'] = dateFrom;
+    if (dateTo) query['filter[created_at][to]'] = dateTo;
+    const data = await amocrm.apiRequest(accountId, '/api/v4/events', { query });
+    const batch = (data && data._embedded && data._embedded.events) || [];
+    events.push(...batch);
+    if (!data || !data._links || !data._links.next) {
+      break;
+    }
+  }
+  return events;
+}
+
+// Batched lookup for specific lead ids (the candidates found via events
+// above) — we need their created_at/responsible_user_id/source/utm to
+// compute cycle length and apply the current manager/source/utm filters,
+// and these leads generally aren't in the period-filtered `leads` array
+// this dashboard load already has (they can predate the selected period).
+async function fetchLeadsByIds(accountId, leadIds) {
+  const leads = [];
+  for (let i = 0; i < leadIds.length; i += ID_BATCH_SIZE) {
+    const chunk = leadIds.slice(i, i + ID_BATCH_SIZE);
+    for (let page = 1; page <= MAX_PAGES; page += 1) {
       const query = {
-        limit: EVENT_PAGE_LIMIT,
+        limit: PAGE_LIMIT,
         page,
-        'filter[type]': 'lead_status_changed',
-        'filter[entity]': 'lead',
-        'filter[entity_id]': chunk
+        with: 'source',
+        'filter[id]': chunk
       };
-      const data = await amocrm.apiRequest(accountId, '/api/v4/events', { query });
-      const batch = (data && data._embedded && data._embedded.events) || [];
-      events.push(...batch);
+      const data = await amocrm.apiRequest(accountId, '/api/v4/leads', { query });
+      const batch = (data && data._embedded && data._embedded.leads) || [];
+      leads.push(...batch);
       if (!data || !data._links || !data._links.next) {
         break;
       }
     }
   }
-  return events;
+  return leads;
 }
 
 // amoCRM's event value_after for a status change is documented as an array
@@ -169,38 +198,47 @@ function extractStatusIdFromEvent(event) {
 // Search server logs for "[avg-sale-cycle-debug]".
 const DEBUG_SALE_CYCLE = true;
 
-// Average number of days between a lead's creation and the first time it
-// reached saleStageId, over exactly the leads passed in (the caller decides
-// the cohort — see buildDashboard's saleLeads, the same set as the
-// "Продажи" tile). Requires one batched events lookup; returns null when
-// there's nothing to average (no sales, or no matching events found).
+// Average number of days between a lead's creation and the moment it
+// crossed into saleStageId — but the cohort here is "leads that crossed
+// into the sale stage during the selected period", not "leads created
+// during the selected period". A deal created 05.06 and closed 10.07 has a
+// 35-day cycle and shows up when the period filter is set to July (when it
+// closed), not June (when it started) — matches how the rest of the
+// dashboard's "Продажи" count would NOT include it for a June-period
+// filter (it was created in June but the dashboard only knows about leads
+// created within the selected range), while this tile intentionally covers
+// a different, closing-date-based question.
 //
-// A lead can jump straight past saleStageId in a single drag (e.g. status A
-// -> C, skipping B) — it never has an event landing exactly on B, even
-// though it did pass through that point in the funnel. So "reached" here
-// uses the exact same stage-order comparison as reachedStage() (current
-// status county >= saleStageId, or won) applied to each event's new status,
-// not an exact id match — otherwise leads that got fast-tracked past the
-// sale stage would silently drop out of the average instead of counting
-// with their real (earlier) crossing point.
-async function computeAvgSaleCycleDays(accountId, saleLeads, saleStageId, stageOrder) {
-  if (!saleLeads || !saleLeads.length || !saleStageId || !stageOrder) return null;
+// Because of that this can't reuse the period-filtered `leads` list this
+// dashboard load already has — a lead closing this period may have been
+// created in an earlier one and never fetched. So: find every
+// lead_status_changed event account-wide in [dateFrom, dateTo] whose new
+// status counts as "reached" saleStageId (same stage-order comparison as
+// reachedStage() — a lead can jump straight past saleStageId in one drag,
+// e.g. A -> C skipping B, so exact-id matching would miss it), take each
+// lead's earliest such event in the period, then fetch just those leads to
+// get created_at and apply the current manager/source/utm filters.
+async function computeAvgSaleCycleDaysClosedInPeriod(accountId, {
+  saleStageId,
+  stageOrder,
+  dateFrom,
+  dateTo,
+  filters,
+  utmFieldId
+}) {
+  if (!saleStageId || !stageOrder) return null;
 
-  const events = await fetchStatusChangeEvents(accountId, saleLeads.map((l) => l.id));
+  const events = await fetchStatusChangeEventsInRange(accountId, { dateFrom, dateTo });
 
   if (DEBUG_SALE_CYCLE) {
-    console.log('[avg-sale-cycle-debug] saleLeads:', JSON.stringify(saleLeads));
-    console.log('[avg-sale-cycle-debug] saleStageId:', saleStageId);
-    console.log('[avg-sale-cycle-debug] events fetched:', events.length);
+    console.log('[avg-sale-cycle-debug] saleStageId:', saleStageId, 'range:', dateFrom, dateTo);
+    console.log('[avg-sale-cycle-debug] events fetched in range:', events.length);
   }
 
   const firstReachedAt = new Map();
   events.forEach((event) => {
     const extracted = extractStatusIdFromEvent(event);
     const counts = extracted != null && reachedStage({ status_id: extracted }, saleStageId, stageOrder);
-    if (DEBUG_SALE_CYCLE) {
-      console.log('[avg-sale-cycle-debug] entity_id=%s extractedStatusId=%s counted=%s created_at=%s', event.entity_id, extracted, counts, event.created_at);
-    }
     if (!counts) return;
     const leadId = event.entity_id;
     const ts = event.created_at;
@@ -210,16 +248,25 @@ async function computeAvgSaleCycleDays(accountId, saleLeads, saleStageId, stageO
     }
   });
 
+  if (DEBUG_SALE_CYCLE) {
+    console.log('[avg-sale-cycle-debug] leads that crossed the sale stage in range:', firstReachedAt.size);
+  }
+
+  if (!firstReachedAt.size) return null;
+
+  const candidateLeads = await fetchLeadsByIds(accountId, Array.from(firstReachedAt.keys()));
+  const filteredCandidates = filterLeads(candidateLeads, { ...(filters || {}), utmFieldId });
+
   const durationsInDays = [];
-  saleLeads.forEach((lead) => {
+  filteredCandidates.forEach((lead) => {
     const reachedAt = firstReachedAt.get(lead.id);
-    if (reachedAt == null) return; // no matching event found for this lead — skip rather than guess
-    const days = (reachedAt - lead.createdAt) / 86400;
+    if (reachedAt == null) return;
+    const days = (reachedAt - lead.created_at) / 86400;
     if (days >= 0) durationsInDays.push(days);
   });
 
   if (DEBUG_SALE_CYCLE) {
-    console.log('[avg-sale-cycle-debug] durationsInDays:', JSON.stringify(durationsInDays));
+    console.log('[avg-sale-cycle-debug] durationsInDays after manager/source/utm filters:', JSON.stringify(durationsInDays));
   }
 
   if (!durationsInDays.length) return null;
@@ -432,10 +479,6 @@ function buildDashboard({
     .map(([label, value]) => ({ label, value }))
     .sort((a, b) => b.value - a.value);
 
-  const saleLeads = filtered
-    .filter((l) => reachedStage(l, saleStageId, stageOrder))
-    .map((l) => ({ id: l.id, createdAt: l.created_at }));
-
   const statusNameById = new Map(statuses.map((s) => [s.id, s.name]));
   const dealsInProgress = filtered
     .filter((l) => l.status_id !== WON_STATUS_ID && l.status_id !== LOST_STATUS_ID)
@@ -453,7 +496,7 @@ function buildDashboard({
       price: l.price || 0
     }));
 
-  return { overall, managerBreakdown, sourceTree, dealsInProgress, filterOptions, cost, lossReasons, saleLeads };
+  return { overall, managerBreakdown, sourceTree, dealsInProgress, filterOptions, cost, lossReasons };
 }
 
 module.exports = {
@@ -468,7 +511,7 @@ module.exports = {
   fetchLeadsInRange,
   buildStageOrder,
   buildDashboard,
-  computeAvgSaleCycleDays,
+  computeAvgSaleCycleDaysClosedInPeriod,
   WON_STATUS_ID,
   LOST_STATUS_ID
 };

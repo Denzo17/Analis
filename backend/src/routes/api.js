@@ -119,6 +119,11 @@ router.get('/dashboard/summary', async (req, res) => {
     const spendByPath = dateFromNum && dateToNum
       ? marketingSpendStore.getSpendMap(accountId, pipelineId, dateFromNum, dateToNum)
       : {};
+    const filtersObj = {
+      managerIds: parseIdList(managerIds),
+      sourceIds: parseIdList(sourceIds),
+      utmCampaigns: parseStringList(utmCampaigns)
+    };
 
     const dashboard = analytics.buildDashboard({
       leads,
@@ -130,15 +135,18 @@ router.get('/dashboard/summary', async (req, res) => {
       utmSourceFieldId,
       clientSourceFieldId,
       spendByPath,
-      filters: {
-        managerIds: parseIdList(managerIds),
-        sourceIds: parseIdList(sourceIds),
-        utmCampaigns: parseStringList(utmCampaigns)
-      }
+      filters: filtersObj
     });
 
     const stageOrder = analytics.buildStageOrder(pipeline.statuses);
-    const avgSaleCycleDays = await analytics.computeAvgSaleCycleDays(accountId, dashboard.saleLeads, settings.saleStageId, stageOrder);
+    const avgSaleCycleDays = await analytics.computeAvgSaleCycleDaysClosedInPeriod(accountId, {
+      saleStageId: settings.saleStageId,
+      stageOrder,
+      dateFrom: dateFromNum,
+      dateTo: dateToNum,
+      filters: filtersObj,
+      utmFieldId
+    });
 
     res.json({
       pipeline: { id: pipeline.id, name: pipeline.name, statuses: pipeline.statuses },
