@@ -91,7 +91,7 @@ async function fetchLeadsInRange(accountId, { pipelineId, dateFrom, dateTo }) {
     const query = {
       limit: PAGE_LIMIT,
       page,
-      with: 'source',
+      with: 'source,loss_reason',
       'filter[pipeline_id]': pipelineId
     };
     if (dateFrom) query['filter[created_at][from]'] = dateFrom;
@@ -302,6 +302,16 @@ function buildDashboard({
     cac: siteLeadNode ? siteLeadNode.cac : null
   };
 
+  const lossReasonCounts = new Map();
+  filtered.forEach((lead) => {
+    if (lead.status_id !== LOST_STATUS_ID) return;
+    const reason = (lead._embedded && lead._embedded.loss_reason && lead._embedded.loss_reason.name) || '(без причины)';
+    lossReasonCounts.set(reason, (lossReasonCounts.get(reason) || 0) + 1);
+  });
+  const lossReasons = Array.from(lossReasonCounts.entries())
+    .map(([label, value]) => ({ label, value }))
+    .sort((a, b) => b.value - a.value);
+
   const statusNameById = new Map(statuses.map((s) => [s.id, s.name]));
   const dealsInProgress = filtered
     .filter((l) => l.status_id !== WON_STATUS_ID && l.status_id !== LOST_STATUS_ID)
@@ -319,7 +329,7 @@ function buildDashboard({
       price: l.price || 0
     }));
 
-  return { overall, managerBreakdown, sourceTree, dealsInProgress, filterOptions, cost };
+  return { overall, managerBreakdown, sourceTree, dealsInProgress, filterOptions, cost, lossReasons };
 }
 
 module.exports = {

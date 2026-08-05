@@ -121,7 +121,61 @@ html, body {
   min-width: 150px;
 }
 
-.la-filter select[multiple] { min-height: 32px; }
+/* ---- collapsible checklist filters (Ответственные / Источник / utm_campaign) ---- */
+.la-dropdown-filter {
+  position: relative;
+}
+
+.la-dropdown-filter__trigger {
+  font: inherit;
+  font-size: 13px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface-1);
+  color: var(--text-primary);
+  min-width: 150px;
+  text-align: left;
+  cursor: pointer;
+}
+.la-dropdown-filter__trigger:hover { border-color: var(--accent); }
+
+.la-dropdown-filter__panel {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 30;
+  min-width: 220px;
+  max-height: 260px;
+  overflow-y: auto;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.18);
+  padding: 6px;
+}
+
+.la-dropdown-filter__panel label.la-dropdown-filter__option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--text-primary);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.la-dropdown-filter__option:hover { background: var(--gridline); }
+
+/* The generic ".la-filter input" rule above (sized for the date-range text
+   inputs) would otherwise stretch these checkboxes to its 150px min-width. */
+.la-dropdown-filter__option input[type="checkbox"] {
+  min-width: auto;
+  width: 14px;
+  padding: 0;
+  flex-shrink: 0;
+}
 
 .la-settings-toggle {
   margin-left: auto;
@@ -219,7 +273,20 @@ html, body {
   font-size: 12px;
 }
 
-.la-bar-row__label { color: var(--text-secondary); }
+.la-bar-row__label {
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.la-bar-row--child {
+  grid-template-columns: 140px 1fr 70px;
+  padding-left: 20px;
+  opacity: 0.85;
+}
+.la-bar-row--child .la-bar-track { height: 10px; }
+.la-bar-row--child .la-bar-row__label { font-size: 11px; padding-left: 16px; }
 
 .la-bar-track {
   background: var(--gridline);

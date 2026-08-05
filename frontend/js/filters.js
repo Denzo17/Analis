@@ -4,37 +4,50 @@
   var DAY = 24 * 60 * 60;
 
   // All day-boundary math goes through this — midnight in the *browser's*
-  // local time zone, not UTC. Plain `timestamp % DAY` arithmetic (the old
-  // approach for today/last7/30/90) silently computes UTC-day boundaries
-  // instead, which drifted against "С начала месяца"/"Прошлый месяц"
-  // (already local-time via the numeric Date constructor) and against the
-  // custom-range inputs below by exactly the timezone offset — off by one
-  // lead near midnight depending which preset you picked.
+  // local time zone, not UTC. Plain `timestamp % DAY` arithmetic silently
+  // computes UTC-day boundaries instead, which drifts against the numeric
+  // Date constructor used elsewhere by exactly the timezone offset.
   function localDayStart(date) {
     return Math.floor(new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime() / 1000);
   }
 
+  // Monday-start week (RU convention). getDay(): 0=Sun..6=Sat.
+  function mondayOf(date) {
+    var day = date.getDay();
+    var diff = day === 0 ? 6 : day - 1;
+    return new Date(date.getFullYear(), date.getMonth(), date.getDate() - diff);
+  }
+
   function presetRange(key) {
     var now = Math.floor(Date.now() / 1000);
-    var todayStart = localDayStart(new Date());
+    var today = new Date();
+    var todayStart = localDayStart(today);
     switch (key) {
       case 'today':
         return { from: todayStart, to: now };
-      case 'last7':
-        return { from: todayStart - 7 * DAY, to: now };
-      case 'last30':
-        return { from: todayStart - 30 * DAY, to: now };
-      case 'last90':
-        return { from: todayStart - 90 * DAY, to: now };
+      case 'yesterday':
+        return { from: todayStart - DAY, to: todayStart - 1 };
       case 'month':
-        var d = new Date();
-        var monthStart = Math.floor(new Date(d.getFullYear(), d.getMonth(), 1).getTime() / 1000);
-        return { from: monthStart, to: now };
-      case 'lastMonth':
-        var today = new Date();
+        return { from: Math.floor(new Date(today.getFullYear(), today.getMonth(), 1).getTime() / 1000), to: now };
+      case 'lastMonth': {
         var lastMonthStart = Math.floor(new Date(today.getFullYear(), today.getMonth() - 1, 1).getTime() / 1000);
         var thisMonthStart = Math.floor(new Date(today.getFullYear(), today.getMonth(), 1).getTime() / 1000);
         return { from: lastMonthStart, to: thisMonthStart - 1 };
+      }
+      case 'currentWeek':
+        return { from: localDayStart(mondayOf(today)), to: now };
+      case 'lastWeek': {
+        var thisMonday = mondayOf(today);
+        var prevMonday = new Date(thisMonday.getFullYear(), thisMonday.getMonth(), thisMonday.getDate() - 7);
+        return { from: localDayStart(prevMonday), to: localDayStart(thisMonday) - 1 };
+      }
+      case 'currentYear':
+        return { from: Math.floor(new Date(today.getFullYear(), 0, 1).getTime() / 1000), to: now };
+      case 'lastYear': {
+        var thisYearStart = Math.floor(new Date(today.getFullYear(), 0, 1).getTime() / 1000);
+        var lastYearStart = Math.floor(new Date(today.getFullYear() - 1, 0, 1).getTime() / 1000);
+        return { from: lastYearStart, to: thisYearStart - 1 };
+      }
       default:
         return null;
     }
@@ -42,10 +55,8 @@
 
   // <input type="date">'s value is "YYYY-MM-DD" with no time component —
   // passed straight to `new Date(string)`, JS parses date-only ISO strings
-  // as UTC midnight, not local midnight, which is what silently caused the
-  // "Прошлый месяц" vs. manually typing the same 01.07–31.07 range to
-  // disagree by one lead. Parsing the parts ourselves keeps it local,
-  // consistent with every preset above.
+  // as UTC midnight, not local midnight. Parsing the parts ourselves keeps
+  // it local, consistent with every preset above.
   function parseDateInputLocal(value) {
     if (!value) return null;
     var parts = value.split('-');
@@ -62,39 +73,79 @@
     return d.getFullYear() + '-' + mm + '-' + dd;
   }
 
-  function el(tag, className) {
+  function el(tag, className, text) {
     var node = document.createElement(tag);
     if (className) node.className = className;
+    if (text != null) node.textContent = text;
     return node;
   }
 
-  // options: [{id, name}]. isString keeps values as-is (UTM campaigns are
-  // free-text); otherwise values round-trip through Number() (source ids,
-  // manager ids).
-  function multiSelect(label, options, selectedValues, isString) {
-    var wrap = el('div', 'la-filter');
-    var lbl = el('label');
-    lbl.textContent = label;
-    var select = el('select');
-    select.multiple = true;
-    options.forEach(function (opt) {
-      var o = document.createElement('option');
-      o.value = opt.id;
-      o.textContent = opt.name;
-      o.selected = selectedValues.indexOf(opt.id) !== -1;
-      select.appendChild(o);
-    });
-    wrap.appendChild(lbl);
-    wrap.appendChild(select);
-    return {
-      wrap: wrap,
-      select: select,
-      readValues: function () {
-        return Array.from(select.selectedOptions).map(function (o) {
-          return isString ? o.value : Number(o.value);
-        });
+  // A collapsed dropdown + checklist panel, standing in for a native
+  // <select multiple> (which renders as an always-open scroll box) so every
+  // multi-value filter looks and behaves like the Период select: collapsed
+  // by default, opens on click, closes on an outside click.
+  // options: [{id, name}]. onChange(values) fires on every checkbox toggle.
+  function dropdownChecklist(label, options, selectedValues, onChange) {
+    var wrap = el('div', 'la-filter la-dropdown-filter');
+    wrap.appendChild(el('label', '', label));
+
+    var trigger = el('button', 'la-dropdown-filter__trigger');
+    trigger.type = 'button';
+    wrap.appendChild(trigger);
+
+    var panel = el('div', 'la-dropdown-filter__panel');
+    panel.hidden = true;
+    wrap.appendChild(panel);
+
+    var selected = selectedValues.slice();
+
+    function updateTrigger() {
+      if (!selected.length) {
+        trigger.textContent = 'Все';
+      } else if (selected.length === 1) {
+        var opt = options.find(function (o) { return o.id === selected[0]; });
+        trigger.textContent = opt ? opt.name : String(selected[0]);
+      } else {
+        trigger.textContent = selected.length + ' выбрано';
       }
-    };
+    }
+
+    function onDocClick(e) {
+      if (!wrap.contains(e.target)) closePanel();
+    }
+    function closePanel() {
+      panel.hidden = true;
+      document.removeEventListener('click', onDocClick);
+    }
+    trigger.addEventListener('click', function (e) {
+      e.stopPropagation();
+      if (panel.hidden) {
+        panel.hidden = false;
+        setTimeout(function () { document.addEventListener('click', onDocClick); }, 0);
+      } else {
+        closePanel();
+      }
+    });
+
+    options.forEach(function (opt) {
+      var row = el('label', 'la-dropdown-filter__option');
+      var cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = selected.indexOf(opt.id) !== -1;
+      cb.addEventListener('change', function () {
+        var idx = selected.indexOf(opt.id);
+        if (cb.checked && idx === -1) selected.push(opt.id);
+        if (!cb.checked && idx !== -1) selected.splice(idx, 1);
+        updateTrigger();
+        onChange(selected.slice());
+      });
+      row.appendChild(cb);
+      row.appendChild(document.createTextNode(opt.name));
+      panel.appendChild(row);
+    });
+
+    updateTrigger();
+    return wrap;
   }
 
   // Renders the tab row (pipelines) + filter row into `container`.
@@ -119,16 +170,17 @@
 
     // Date range preset
     var dateWrap = el('div', 'la-filter');
-    var dateLabel = el('label');
-    dateLabel.textContent = 'Период';
+    dateWrap.appendChild(el('label', '', 'Период'));
     var dateSelect = el('select');
     [
-      ['last30', 'Последние 30 дней'],
-      ['last7', 'Последние 7 дней'],
+      ['month', 'Текущий месяц'],
+      ['lastMonth', 'Предыдущий месяц'],
+      ['currentWeek', 'Текущая неделя'],
+      ['lastWeek', 'Предыдущая неделя'],
+      ['currentYear', 'Текущий год'],
+      ['lastYear', 'Предыдущий год'],
       ['today', 'Сегодня'],
-      ['month', 'С начала месяца'],
-      ['lastMonth', 'Прошлый месяц'],
-      ['last90', 'Последние 90 дней'],
+      ['yesterday', 'Вчера'],
       ['custom', 'Произвольный период']
     ].forEach(function (pair) {
       var o = document.createElement('option');
@@ -137,7 +189,6 @@
       if (pair[0] === opts.current.datePreset) o.selected = true;
       dateSelect.appendChild(o);
     });
-    dateWrap.appendChild(dateLabel);
     dateWrap.appendChild(dateSelect);
 
     var fromInput = document.createElement('input');
@@ -179,27 +230,24 @@
     filtersRow.appendChild(dateWrap);
     filtersRow.appendChild(customWrap);
 
-    var managers = multiSelect('Ответственные', opts.users, opts.current.managerIds || []);
-    managers.select.addEventListener('change', function () {
-      opts.onFiltersChange({ managerIds: managers.readValues() });
+    var managersWrap = dropdownChecklist('Ответственные', opts.users, opts.current.managerIds || [], function (values) {
+      opts.onFiltersChange({ managerIds: values });
     });
-    filtersRow.appendChild(managers.wrap);
+    filtersRow.appendChild(managersWrap);
 
-    var sources = multiSelect('Источник', opts.sources, opts.current.sourceIds || []);
-    sources.select.addEventListener('change', function () {
-      opts.onFiltersChange({ sourceIds: sources.readValues() });
+    var sourcesWrap = dropdownChecklist('Источник', opts.sources, opts.current.sourceIds || [], function (values) {
+      opts.onFiltersChange({ sourceIds: values });
     });
     if (opts.sources.length) {
-      filtersRow.appendChild(sources.wrap);
+      filtersRow.appendChild(sourcesWrap);
     }
 
     var utmOptions = (opts.utmCampaigns || []).map(function (value) { return { id: value, name: value }; });
-    var utm = multiSelect('utm_campaign', utmOptions, opts.current.utmCampaigns || [], true);
-    utm.select.addEventListener('change', function () {
-      opts.onFiltersChange({ utmCampaigns: utm.readValues() });
+    var utmWrap = dropdownChecklist('utm_campaign', utmOptions, opts.current.utmCampaigns || [], function (values) {
+      opts.onFiltersChange({ utmCampaigns: values });
     });
     if (utmOptions.length) {
-      filtersRow.appendChild(utm.wrap);
+      filtersRow.appendChild(utmWrap);
     }
 
     var settingsBtn = el('button', 'la-settings-toggle');

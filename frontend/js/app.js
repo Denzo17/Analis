@@ -8,10 +8,10 @@
     sources: [],
     utmCampaigns: [],
     pipelineId: null,
-    filters: { datePreset: 'last30', managerIds: [], sourceIds: [], utmCampaigns: [] }
+    filters: { datePreset: 'month', managerIds: [], sourceIds: [], utmCampaigns: [] }
   };
 
-  var initialRange = window.LA.filters.presetRange('last30');
+  var initialRange = window.LA.filters.presetRange('month');
   state.filters.dateFrom = initialRange.from;
   state.filters.dateTo = initialRange.to;
 
@@ -173,7 +173,7 @@
         { label: 'Новые лиды', value: data.overall.newCount, color: 'var(--series-1)' },
         { label: (keyStatus && keyStatus.name) || 'Ключевой этап', value: data.overall.keyCount, color: 'var(--series-2)' },
         { label: (saleStatus && saleStatus.name) || 'Продажа', value: data.overall.saleCount, color: 'var(--series-3)' },
-        { label: 'Отказ', value: data.overall.lostCount, color: 'var(--status-critical)' }
+        { label: 'Отказ', value: data.overall.lostCount, color: 'var(--status-critical)', children: data.lossReasons }
       ]);
     }
 

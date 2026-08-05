@@ -36,30 +36,64 @@
     container.appendChild(wrap);
   }
 
-  // steps: [{ label, value, color }]. Bars are scaled against the first
-  // (largest / "new leads") step, matching the read-top-to-bottom funnel
-  // convention from the reference dashboard.
+  // steps: [{ label, value, color, children? }]. Bars are scaled against the
+  // first (largest / "new leads") step, matching the read-top-to-bottom
+  // funnel convention from the reference dashboard. A step with `children`
+  // ([{label, value}], e.g. loss reasons under "Отказ") gets an expand
+  // arrow; its children render as smaller indented bars scaled against
+  // their own max (their counts are usually much smaller than the funnel
+  // steps, so scaling them against the same max as the parent would make
+  // them unreadably thin).
   function renderFunnel(container, title, steps) {
     container.innerHTML = '';
     var card = el('div', 'la-card');
     card.appendChild(el('div', 'la-card__title', title));
     var bars = el('div', 'la-bars');
     var max = Math.max.apply(null, steps.map(function (s) { return s.value; }).concat([1]));
+    var expanded = {};
 
-    steps.forEach(function (step) {
-      var row = el('div', 'la-bar-row');
-      row.appendChild(el('div', 'la-bar-row__label', step.label));
+    function appendBarRow(host, label, value, localMax, color, extraClass) {
+      var row = el('div', 'la-bar-row' + (extraClass ? ' ' + extraClass : ''));
+      row.appendChild(el('div', 'la-bar-row__label', label));
       var track = el('div', 'la-bar-track');
       var fill = el('div', 'la-bar-fill');
-      var pct = max > 0 ? (step.value / max) * 100 : 0;
-      fill.style.width = Math.max(pct, step.value > 0 ? 1 : 0) + '%';
-      fill.style.background = step.color;
+      var pct = localMax > 0 ? (value / localMax) * 100 : 0;
+      fill.style.width = Math.max(pct, value > 0 ? 1 : 0) + '%';
+      fill.style.background = color;
       track.appendChild(fill);
       row.appendChild(track);
-      row.appendChild(el('div', 'la-bar-row__value', formatNumber(step.value)));
-      bars.appendChild(row);
-    });
+      row.appendChild(el('div', 'la-bar-row__value', formatNumber(value)));
+      host.appendChild(row);
+      return row;
+    }
 
+    function renderBars() {
+      bars.innerHTML = '';
+      steps.forEach(function (step, idx) {
+        var hasChildren = step.children && step.children.length > 0;
+        var row = appendBarRow(bars, null, step.value, max, step.color);
+        var labelCell = row.querySelector('.la-bar-row__label');
+        if (hasChildren) {
+          var toggle = el('button', 'la-tree-toggle', expanded[idx] ? '▾' : '▸');
+          toggle.type = 'button';
+          toggle.addEventListener('click', function () {
+            expanded[idx] = !expanded[idx];
+            renderBars();
+          });
+          labelCell.appendChild(toggle);
+        }
+        labelCell.appendChild(document.createTextNode(step.label));
+
+        if (hasChildren && expanded[idx]) {
+          var childMax = Math.max.apply(null, step.children.map(function (c) { return c.value; }).concat([1]));
+          step.children.forEach(function (child) {
+            appendBarRow(bars, child.label, child.value, childMax, step.color, 'la-bar-row--child');
+          });
+        }
+      });
+    }
+
+    renderBars();
     card.appendChild(bars);
     container.appendChild(card);
   }
