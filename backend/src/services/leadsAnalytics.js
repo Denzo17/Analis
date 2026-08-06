@@ -194,10 +194,6 @@ function extractStatusIdFromEvent(event) {
   return null;
 }
 
-// TEMPORARY diagnostics — remove once confirmed against a live account.
-// Search server logs for "[avg-sale-cycle-debug]".
-const DEBUG_SALE_CYCLE = true;
-
 // Average number of days between a lead's creation and the moment it
 // crossed into saleStageId — but the cohort here is "leads that crossed
 // into the sale stage during the selected period", not "leads created
@@ -230,22 +226,10 @@ async function computeAvgSaleCycleDaysClosedInPeriod(accountId, {
 
   const events = await fetchStatusChangeEventsInRange(accountId, { dateFrom, dateTo });
 
-  if (DEBUG_SALE_CYCLE) {
-    console.log('[avg-sale-cycle-debug] saleStageId:', saleStageId, 'range:', dateFrom, dateTo);
-    console.log('[avg-sale-cycle-debug] events fetched in range:', events.length);
-    if (events.length) {
-      const createdAts = events.map((e) => e.created_at);
-      console.log('[avg-sale-cycle-debug] event created_at min/max:', Math.min(...createdAts), Math.max(...createdAts));
-    }
-  }
-
   const firstReachedAt = new Map();
   events.forEach((event) => {
     const extracted = extractStatusIdFromEvent(event);
     const counts = extracted != null && reachedStage({ status_id: extracted }, saleStageId, stageOrder);
-    if (DEBUG_SALE_CYCLE) {
-      console.log('[avg-sale-cycle-debug] event entity_id=%s extracted=%s counts=%s created_at=%s', event.entity_id, extracted, counts, event.created_at);
-    }
     if (!counts) return;
     const leadId = event.entity_id;
     const ts = event.created_at;
@@ -255,20 +239,10 @@ async function computeAvgSaleCycleDaysClosedInPeriod(accountId, {
     }
   });
 
-  if (DEBUG_SALE_CYCLE) {
-    console.log('[avg-sale-cycle-debug] leads that crossed the sale stage in range:', JSON.stringify(Array.from(firstReachedAt.keys())));
-  }
-
   if (!firstReachedAt.size) return null;
 
   const candidateLeads = await fetchLeadsByIds(accountId, Array.from(firstReachedAt.keys()));
-  if (DEBUG_SALE_CYCLE) {
-    console.log('[avg-sale-cycle-debug] candidateLeads fetched:', JSON.stringify(candidateLeads.map((l) => ({ id: l.id, created_at: l.created_at, responsible_user_id: l.responsible_user_id, source: l._embedded && l._embedded.source }))));
-  }
   const filteredCandidates = filterLeads(candidateLeads, { ...(filters || {}), utmFieldId });
-  if (DEBUG_SALE_CYCLE) {
-    console.log('[avg-sale-cycle-debug] filteredCandidates after manager/source/utm:', JSON.stringify(filteredCandidates.map((l) => l.id)));
-  }
 
   const durationsInDays = [];
   filteredCandidates.forEach((lead) => {
@@ -277,10 +251,6 @@ async function computeAvgSaleCycleDaysClosedInPeriod(accountId, {
     const days = (reachedAt - lead.created_at) / 86400;
     if (days >= 0) durationsInDays.push(days);
   });
-
-  if (DEBUG_SALE_CYCLE) {
-    console.log('[avg-sale-cycle-debug] durationsInDays:', JSON.stringify(durationsInDays));
-  }
 
   if (!durationsInDays.length) return null;
   const avg = durationsInDays.reduce((a, b) => a + b, 0) / durationsInDays.length;
