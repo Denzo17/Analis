@@ -149,6 +149,11 @@
     });
   }
 
+  function formatDateFromUnix(seconds) {
+    if (!seconds) return '';
+    return new Date(seconds * 1000).toLocaleDateString('ru-RU');
+  }
+
   function renderDashboard(data) {
     if (data.filterOptions) {
       state.sources = data.filterOptions.sources || [];
@@ -240,6 +245,32 @@
         { key: 'utmCampaign', label: 'utm_campaign' },
         { key: 'price', label: 'Бюджет', numeric: true }
       ], data.dealsWon.slice(0, 50));
+    }
+
+    if (design.showAvgSaleCycleDeals !== false) {
+      var cycleDealsHost = document.createElement('div');
+      content.appendChild(cycleDealsHost);
+      var cycleDeals = (data.avgSaleCycleDeals || []).map(function (d) {
+        return Object.assign({}, d, {
+          createdDate: formatDateFromUnix(d.createdAt),
+          reachedDate: formatDateFromUnix(d.reachedAt)
+        });
+      });
+      window.LA.charts.renderTable(
+        cycleDealsHost,
+        'Сделки в расчёте среднего цикла сделки (' + cycleDeals.length + ')',
+        [
+          { key: 'name', label: 'Сделка' },
+          { key: 'responsibleUserName', label: 'Ответственный' },
+          { key: 'statusName', label: 'Статус' },
+          { key: 'sourceName', label: 'Источник' },
+          { key: 'utmCampaign', label: 'utm_campaign' },
+          { key: 'createdDate', label: 'Дата создания' },
+          { key: 'reachedDate', label: 'Дата перехода в продажу' },
+          { key: 'cycleDays', label: 'Цикл сделки', days: true }
+        ],
+        cycleDeals.slice(0, 50)
+      );
     }
   }
 

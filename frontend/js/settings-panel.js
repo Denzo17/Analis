@@ -80,7 +80,8 @@
       ['showManagerTable', 'Таблица по менеджерам'],
       ['showSourceTree', 'Источник клиента → utm_source → utm_campaign'],
       ['showDealsInProgress', 'Сделки в работе'],
-      ['showDealsWon', 'Успешные сделки']
+      ['showDealsWon', 'Успешные сделки'],
+      ['showAvgSaleCycleDeals', 'Сделки в расчёте среднего цикла']
     ];
     var blockCheckboxes = {};
     blockDefs.forEach(function (pair) {
@@ -116,7 +117,8 @@
         showManagerTable: blockCheckboxes.showManagerTable.checked,
         showSourceTree: blockCheckboxes.showSourceTree.checked,
         showDealsInProgress: blockCheckboxes.showDealsInProgress.checked,
-        showDealsWon: blockCheckboxes.showDealsWon.checked
+        showDealsWon: blockCheckboxes.showDealsWon.checked,
+        showAvgSaleCycleDeals: blockCheckboxes.showAvgSaleCycleDeals.checked
       };
       opts.onSave({
         keyStageId: keyStage.select.value ? Number(keyStage.select.value) : null,

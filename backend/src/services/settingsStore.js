@@ -7,7 +7,8 @@ const DEFAULT_DESIGN = {
   showSourceTree: true,
   showFunnelChart: true,
   showDealsInProgress: true,
-  showDealsWon: true
+  showDealsWon: true,
+  showAvgSaleCycleDeals: true
 };
 
 const getStmt = db.prepare('SELECT * FROM dashboard_settings WHERE account_id = ? AND pipeline_id = ?');

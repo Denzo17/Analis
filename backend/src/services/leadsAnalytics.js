@@ -194,6 +194,24 @@ function extractStatusIdFromEvent(event) {
   return null;
 }
 
+// Shared row shape for every "list of deals" table (Сделки в работе,
+// Успешные сделки, Сделки в расчёте среднего цикла) so they stay visually
+// consistent and each caller only supplies its own name-lookup maps.
+function buildDealRow(lead, { userNameById, statusNameById, utmFieldId }) {
+  return {
+    id: lead.id,
+    name: lead.name,
+    responsibleUserId: lead.responsible_user_id,
+    responsibleUserName: userNameById.get(lead.responsible_user_id) || '',
+    statusId: lead.status_id,
+    statusName: statusNameById.get(lead.status_id) || '',
+    sourceName: (lead._embedded && lead._embedded.source && lead._embedded.source.name) || '',
+    utmCampaign: getCustomFieldValue(lead, utmFieldId) || '',
+    createdAt: lead.created_at,
+    price: lead.price || 0
+  };
+}
+
 // Average number of days between a lead's creation and the moment it
 // crossed into saleStageId — but the cohort here is "leads that crossed
 // into the sale stage during the selected period", not "leads created
@@ -214,15 +232,23 @@ function extractStatusIdFromEvent(event) {
 // e.g. A -> C skipping B, so exact-id matching would miss it), take each
 // lead's earliest such event in the period, then fetch just those leads to
 // get created_at and apply the current manager/source/utm filters.
+// Returns { avgDays, deals } — `deals` is the exact set of leads the average
+// is computed from (each with its reachedAt timestamp and its own cycle
+// length), sorted most-recently-closed first, so the dashboard can show
+// people which deals are behind the tile's number instead of just the
+// average on its own.
 async function computeAvgSaleCycleDaysClosedInPeriod(accountId, {
   saleStageId,
   stageOrder,
   dateFrom,
   dateTo,
   filters,
-  utmFieldId
+  utmFieldId,
+  users,
+  statuses
 }) {
-  if (!saleStageId || !stageOrder) return null;
+  const empty = { avgDays: null, deals: [] };
+  if (!saleStageId || !stageOrder) return empty;
 
   const events = await fetchStatusChangeEventsInRange(accountId, { dateFrom, dateTo });
 
@@ -239,22 +265,34 @@ async function computeAvgSaleCycleDaysClosedInPeriod(accountId, {
     }
   });
 
-  if (!firstReachedAt.size) return null;
+  if (!firstReachedAt.size) return empty;
 
   const candidateLeads = await fetchLeadsByIds(accountId, Array.from(firstReachedAt.keys()));
   const filteredCandidates = filterLeads(candidateLeads, { ...(filters || {}), utmFieldId });
 
-  const durationsInDays = [];
+  const matches = [];
   filteredCandidates.forEach((lead) => {
     const reachedAt = firstReachedAt.get(lead.id);
     if (reachedAt == null) return;
     const days = (reachedAt - lead.created_at) / 86400;
-    if (days >= 0) durationsInDays.push(days);
+    if (days >= 0) matches.push({ lead, reachedAt, days });
   });
 
-  if (!durationsInDays.length) return null;
-  const avg = durationsInDays.reduce((a, b) => a + b, 0) / durationsInDays.length;
-  return Math.round(avg * 10) / 10;
+  if (!matches.length) return empty;
+
+  const avg = matches.reduce((sum, m) => sum + m.days, 0) / matches.length;
+
+  const userNameById = new Map((users || []).map((u) => [u.id, u.name]));
+  const statusNameById = new Map((statuses || []).map((s) => [s.id, s.name]));
+  const deals = matches
+    .map((m) => ({
+      ...buildDealRow(m.lead, { userNameById, statusNameById, utmFieldId }),
+      reachedAt: m.reachedAt,
+      cycleDays: Math.round(m.days * 10) / 10
+    }))
+    .sort((a, b) => b.reachedAt - a.reachedAt);
+
+  return { avgDays: Math.round(avg * 10) / 10, deals };
 }
 
 function buildStageOrder(statuses) {
@@ -463,18 +501,7 @@ function buildDashboard({
     .sort((a, b) => b.value - a.value);
 
   const statusNameById = new Map(statuses.map((s) => [s.id, s.name]));
-  const toDealRow = (l) => ({
-    id: l.id,
-    name: l.name,
-    responsibleUserId: l.responsible_user_id,
-    responsibleUserName: userNameById.get(l.responsible_user_id) || '',
-    statusId: l.status_id,
-    statusName: statusNameById.get(l.status_id) || '',
-    sourceName: (l._embedded && l._embedded.source && l._embedded.source.name) || '',
-    utmCampaign: getCustomFieldValue(l, utmFieldId) || '',
-    createdAt: l.created_at,
-    price: l.price || 0
-  });
+  const toDealRow = (l) => buildDealRow(l, { userNameById, statusNameById, utmFieldId });
 
   const dealsInProgress = filtered
     .filter((l) => l.status_id !== WON_STATUS_ID && l.status_id !== LOST_STATUS_ID)

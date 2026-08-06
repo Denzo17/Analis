@@ -139,20 +139,23 @@ router.get('/dashboard/summary', async (req, res) => {
     });
 
     const stageOrder = analytics.buildStageOrder(pipeline.statuses);
-    const avgSaleCycleDays = await analytics.computeAvgSaleCycleDaysClosedInPeriod(accountId, {
+    const avgCycle = await analytics.computeAvgSaleCycleDaysClosedInPeriod(accountId, {
       saleStageId: settings.saleStageId,
       stageOrder,
       dateFrom: dateFromNum,
       dateTo: dateToNum,
       filters: filtersObj,
-      utmFieldId
+      utmFieldId,
+      users,
+      statuses: pipeline.statuses
     });
 
     res.json({
       pipeline: { id: pipeline.id, name: pipeline.name, statuses: pipeline.statuses },
       settings,
       ...dashboard,
-      avgSaleCycleDays
+      avgSaleCycleDays: avgCycle.avgDays,
+      avgSaleCycleDeals: avgCycle.deals
     });
   } catch (err) {
     console.error('GET /dashboard/summary failed', err);

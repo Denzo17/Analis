@@ -116,10 +116,10 @@
   // Renders one <td> for a stat column (used by both renderTable and
   // renderTree so the meter-bar/percent/number formatting stays identical).
   function renderStatCell(col, raw) {
-    var td = el('td', col.numeric || col.currency ? 'la-num' : '');
+    var td = el('td', col.numeric || col.currency || col.days ? 'la-num' : '');
     var text = col.currency
       ? formatCurrency(raw)
-      : (col.percent ? formatPercent(raw) : (col.numeric ? formatNumber(raw) : (raw == null ? '' : String(raw))));
+      : (col.days ? formatDays(raw) : (col.percent ? formatPercent(raw) : (col.numeric ? formatNumber(raw) : (raw == null ? '' : String(raw)))));
     if (col.meter) {
       td.classList.add('la-meter-cell');
       var bar = el('div', 'la-meter-cell__bar');
