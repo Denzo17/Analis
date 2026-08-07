@@ -343,6 +343,18 @@ table.la-table {
 
 .la-table td.la-num, .la-table th.la-num { text-align: right; font-variant-numeric: tabular-nums; }
 
+.la-sortable-th {
+  cursor: pointer;
+  user-select: none;
+}
+.la-sortable-th:hover { color: var(--text-primary); }
+.la-sort-arrow {
+  display: inline-block;
+  font-size: 10px;
+  margin-left: 2px;
+  color: var(--accent);
+}
+
 .la-table-total-row td {
   font-weight: 600;
   border-top: 2px solid var(--border);

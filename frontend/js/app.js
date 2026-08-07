@@ -252,8 +252,8 @@
         dealsHost,
         'Сделки в работе (' + data.overall.inProgressCount + ')',
         dealListColumns,
-        data.dealsInProgress.slice(0, 50),
-        { totalsSource: data.dealsInProgress, collapsible: true }
+        data.dealsInProgress,
+        { limit: 50, collapsible: true }
       );
     }
 
@@ -264,8 +264,8 @@
         dealsLostHost,
         'Отказы (' + data.overall.lostCount + ')',
         dealListColumns,
-        (data.dealsLost || []).slice(0, 50),
-        { totalsSource: data.dealsLost, collapsible: true }
+        data.dealsLost || [],
+        { limit: 50, collapsible: true }
       );
     }
 
@@ -276,8 +276,8 @@
         dealsWonHost,
         'Успешные сделки (' + data.overall.saleCount + ')',
         dealListColumns,
-        data.dealsWon.slice(0, 50),
-        { totalsSource: data.dealsWon, collapsible: true }
+        data.dealsWon,
+        { limit: 50, collapsible: true }
       );
     }
 
@@ -312,13 +312,13 @@
           { key: 'statusName', label: 'Статус' },
           { key: 'sourceName', label: 'Источник' },
           { key: 'utmCampaign', label: 'utm_campaign' },
-          { key: 'createdDate', label: 'Дата создания' },
-          { key: 'reachedDate', label: 'Дата перехода в продажу' },
+          { key: 'createdDate', label: 'Дата создания', sortKey: 'createdAt', sortType: 'numeric' },
+          { key: 'reachedDate', label: 'Дата перехода в продажу', sortKey: 'reachedAt', sortType: 'numeric' },
           { key: 'cycleDays', label: 'Цикл сделки', days: true },
           { key: 'price', label: 'Бюджет', numeric: true, sumInFooter: true }
         ],
-        cycleDeals.slice(0, 50),
-        { totalsSource: cycleDeals, collapsible: true }
+        cycleDeals,
+        { limit: 50, collapsible: true }
       );
     }
   }

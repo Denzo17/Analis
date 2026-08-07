@@ -142,12 +142,42 @@
     return td;
   }
 
-  // columns: [{ key, label, numeric, percent, meter, sumInFooter }]
-  // rows: array of plain objects keyed by column.key
+  // A column sorts numerically if it's flagged numeric/currency/days/percent
+  // (or explicitly via sortType: 'numeric' — used for a display column that
+  // shows formatted text but should sort by a different underlying raw
+  // value, via sortKey). Everything else sorts as text via localeCompare,
+  // which orders Cyrillic and Latin strings correctly on its own.
+  function isNumericSortColumn(col) {
+    return !!(col.numeric || col.currency || col.days || col.percent || col.sortType === 'numeric');
+  }
+
+  function sortRows(rows, columns, sortState) {
+    if (!sortState.key) return rows;
+    var col = columns.filter(function (c) { return c.key === sortState.key; })[0];
+    if (!col) return rows;
+    var sortKey = col.sortKey || col.key;
+    var numeric = isNumericSortColumn(col);
+    var dir = sortState.dir === 'desc' ? -1 : 1;
+    return rows.slice().sort(function (a, b) {
+      var av = a[sortKey];
+      var bv = b[sortKey];
+      if (numeric) {
+        var an = av == null || av === '' ? -Infinity : Number(av);
+        var bn = bv == null || bv === '' ? -Infinity : Number(bv);
+        return (an - bn) * dir;
+      }
+      var as = av == null ? '' : String(av);
+      var bs = bv == null ? '' : String(bv);
+      return as.localeCompare(bs, 'ru') * dir;
+    });
+  }
+
+  // columns: [{ key, label, numeric, percent, meter, sumInFooter, sortKey, sortType }]
+  // rows: array of plain objects keyed by column.key — the FULL matching
+  // set, not a display-truncated slice (totals and sorting both need the
+  // whole thing; use opts.limit to cap what's actually shown).
   // opts:
-  //   totalsSource — full (unsliced) row set to total columns marked
-  //     `sumInFooter` over, when `rows` itself is a truncated slice for
-  //     display (defaults to `rows`).
+  //   limit — cap how many (post-sort) rows are displayed.
   //   collapsible — render the title as a toggle and start the table
   //     collapsed, for tables that don't need to stay open by default.
   function renderTable(container, title, columns, rows, opts) {
@@ -178,46 +208,71 @@
     var table = el('table', 'la-table');
     var thead = el('thead');
     var headRow = el('tr');
+    var sortState = { key: null, dir: 'asc' };
+    var arrowByKey = {};
     columns.forEach(function (col) {
-      headRow.appendChild(el('th', col.numeric || col.currency ? 'la-num' : '', col.label));
+      var th = el('th', 'la-sortable-th' + (col.numeric || col.currency ? ' la-num' : ''));
+      th.appendChild(document.createTextNode(col.label));
+      var arrowSpan = el('span', 'la-sort-arrow');
+      th.appendChild(arrowSpan);
+      arrowByKey[col.key] = arrowSpan;
+      th.addEventListener('click', function () {
+        if (sortState.key === col.key) {
+          sortState.dir = sortState.dir === 'asc' ? 'desc' : 'asc';
+        } else {
+          sortState.key = col.key;
+          sortState.dir = 'asc';
+        }
+        Object.keys(arrowByKey).forEach(function (key) {
+          arrowByKey[key].textContent = key === sortState.key ? (sortState.dir === 'asc' ? ' ▲' : ' ▼') : '';
+        });
+        renderBody();
+      });
+      headRow.appendChild(th);
     });
     thead.appendChild(headRow);
     table.appendChild(thead);
 
     var tbody = el('tbody');
-    if (!rows.length) {
-      var emptyRow = el('tr');
-      var emptyCell = el('td', '', 'Нет данных за выбранный период');
-      emptyCell.colSpan = columns.length;
-      emptyRow.appendChild(emptyCell);
-      tbody.appendChild(emptyRow);
-    }
-    rows.forEach(function (row) {
-      var tr = el('tr');
-      columns.forEach(function (col) {
-        tr.appendChild(renderStatCell(col, row[col.key]));
-      });
-      tbody.appendChild(tr);
-    });
 
-    if (rows.length && columns.some(function (c) { return c.sumInFooter; })) {
-      var totalsSource = opts.totalsSource || rows;
-      var totalTr = el('tr', 'la-table-total-row');
-      columns.forEach(function (col, idx) {
-        if (idx === 0) {
-          totalTr.appendChild(el('td', '', 'Итого'));
-          return;
-        }
-        if (col.sumInFooter) {
-          var sum = totalsSource.reduce(function (acc, r) { return acc + (Number(r[col.key]) || 0); }, 0);
-          totalTr.appendChild(renderStatCell(col, sum));
-        } else {
-          totalTr.appendChild(el('td', col.numeric || col.currency || col.days ? 'la-num' : ''));
-        }
+    function renderBody() {
+      tbody.innerHTML = '';
+      var sorted = sortRows(rows, columns, sortState);
+      var display = opts.limit ? sorted.slice(0, opts.limit) : sorted;
+      if (!display.length) {
+        var emptyRow = el('tr');
+        var emptyCell = el('td', '', 'Нет данных за выбранный период');
+        emptyCell.colSpan = columns.length;
+        emptyRow.appendChild(emptyCell);
+        tbody.appendChild(emptyRow);
+      }
+      display.forEach(function (row) {
+        var tr = el('tr');
+        columns.forEach(function (col) {
+          tr.appendChild(renderStatCell(col, row[col.key]));
+        });
+        tbody.appendChild(tr);
       });
-      tbody.appendChild(totalTr);
+
+      if (rows.length && columns.some(function (c) { return c.sumInFooter; })) {
+        var totalTr = el('tr', 'la-table-total-row');
+        columns.forEach(function (col, idx) {
+          if (idx === 0) {
+            totalTr.appendChild(el('td', '', 'Итого'));
+            return;
+          }
+          if (col.sumInFooter) {
+            var sum = rows.reduce(function (acc, r) { return acc + (Number(r[col.key]) || 0); }, 0);
+            totalTr.appendChild(renderStatCell(col, sum));
+          } else {
+            totalTr.appendChild(el('td', col.numeric || col.currency || col.days ? 'la-num' : ''));
+          }
+        });
+        tbody.appendChild(totalTr);
+      }
     }
 
+    renderBody();
     table.appendChild(tbody);
     wrap.appendChild(table);
     card.appendChild(wrap);
