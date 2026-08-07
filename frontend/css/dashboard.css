@@ -166,7 +166,24 @@ html, body {
   cursor: pointer;
   white-space: nowrap;
 }
+.la-dropdown-filter__panel button.la-dropdown-filter__option {
+  display: block;
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  color: var(--text-primary);
+  cursor: pointer;
+  text-align: left;
+  white-space: nowrap;
+}
 .la-dropdown-filter__option:hover { background: var(--gridline); }
+
+.la-export-menu { margin-left: auto; }
+.la-export-menu__panel { min-width: 140px; }
 
 /* The generic ".la-filter input" rule above (sized for the date-range text
    inputs) would otherwise stretch these checkboxes to its 150px min-width. */

@@ -75,7 +75,8 @@
         Object.assign(state.filters, partial);
         loadDashboard();
       },
-      onOpenSettings: openSettings
+      onOpenSettings: openSettings,
+      onExport: exportReport
     });
   }
 
@@ -328,9 +329,7 @@
     }
   }
 
-  function loadDashboard() {
-    var content = document.getElementById('la-content-container');
-    content.innerHTML = '<div class="la-loading">Загрузка…</div>';
+  function buildDashboardQuery() {
     var query = new URLSearchParams({
       pipelineId: state.pipelineId,
       dateFrom: state.filters.dateFrom,
@@ -339,6 +338,13 @@
     if (state.filters.managerIds && state.filters.managerIds.length) query.set('managerIds', state.filters.managerIds.join(','));
     if (state.filters.sourceIds && state.filters.sourceIds.length) query.set('sourceIds', state.filters.sourceIds.join(','));
     if (state.filters.utmCampaigns && state.filters.utmCampaigns.length) query.set('utmCampaigns', state.filters.utmCampaigns.join(','));
+    return query;
+  }
+
+  function loadDashboard() {
+    var content = document.getElementById('la-content-container');
+    content.innerHTML = '<div class="la-loading">Загрузка…</div>';
+    var query = buildDashboardQuery();
 
     api('/api/dashboard/summary?' + query.toString())
       .then(renderDashboard)
@@ -353,6 +359,37 @@
         }
         renderEmptyState('Не удалось загрузить данные: ' + err.message, 'Повторить', loadDashboard);
       });
+  }
+
+  function exportReport(format) {
+    var query = buildDashboardQuery();
+    query.set('format', format);
+    fetch('/api/dashboard/export?' + query.toString(), {
+      headers: { Authorization: 'Bearer ' + session.token }
+    }).then(function (res) {
+      if (res.status === 401) {
+        window.location.reload();
+        return new Promise(function () {});
+      }
+      if (!res.ok) {
+        throw new Error('http_' + res.status);
+      }
+      var disposition = res.headers.get('Content-Disposition') || '';
+      var match = /filename="([^"]+)"/.exec(disposition);
+      var filename = match ? match[1] : ('report.' + format);
+      return res.blob().then(function (blob) {
+        var url = URL.createObjectURL(blob);
+        var link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+      });
+    }).catch(function (err) {
+      alert('Не удалось выгрузить отчёт: ' + err.message);
+    });
   }
 
   function openSettings() {

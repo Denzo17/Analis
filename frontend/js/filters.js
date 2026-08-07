@@ -250,6 +250,43 @@
       filtersRow.appendChild(utmWrap);
     }
 
+    var exportWrap = el('div', 'la-dropdown-filter la-export-menu');
+    var exportTrigger = el('button', 'la-settings-toggle', 'Выгрузить отчёт');
+    exportTrigger.type = 'button';
+    exportWrap.appendChild(exportTrigger);
+
+    var exportPanel = el('div', 'la-dropdown-filter__panel la-export-menu__panel');
+    exportPanel.hidden = true;
+    exportWrap.appendChild(exportPanel);
+
+    function closeExportPanel() {
+      exportPanel.hidden = true;
+      document.removeEventListener('click', onExportDocClick);
+    }
+    function onExportDocClick(e) {
+      if (!exportWrap.contains(e.target)) closeExportPanel();
+    }
+    exportTrigger.addEventListener('click', function (e) {
+      e.stopPropagation();
+      if (exportPanel.hidden) {
+        exportPanel.hidden = false;
+        setTimeout(function () { document.addEventListener('click', onExportDocClick); }, 0);
+      } else {
+        closeExportPanel();
+      }
+    });
+
+    [['pdf', 'PDF'], ['xlsx', 'Excel']].forEach(function (pair) {
+      var optionBtn = el('button', 'la-dropdown-filter__option', pair[1]);
+      optionBtn.type = 'button';
+      optionBtn.addEventListener('click', function () {
+        closeExportPanel();
+        opts.onExport(pair[0]);
+      });
+      exportPanel.appendChild(optionBtn);
+    });
+    filtersRow.appendChild(exportWrap);
+
     var settingsBtn = el('button', 'la-settings-toggle');
     settingsBtn.type = 'button';
     settingsBtn.textContent = 'Настройки виджета';
