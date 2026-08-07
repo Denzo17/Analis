@@ -405,16 +405,17 @@
     { key: 'in_progress', label: 'В работе' },
     { key: 'lost', label: 'Отказ' },
     { key: 'cost_per_lead', label: 'Цена лида (сайт)', isCurrency: true },
-    { key: 'cost_per_sale', label: 'Цена клиента (сайт)', isCurrency: true }
+    { key: 'cost_per_sale', label: 'Цена клиента (сайт)', isCurrency: true },
+    { key: 'avg_check', label: 'Средний чек', isCurrency: true }
   ];
 
-  // Separate from tileDefs (settings-panel visibility list) — this trio
-  // renders in its own titled block lower on the page, not the top KPI row,
-  // and isn't individually toggleable there.
+  // Separate from tileDefs (settings-panel visibility list) — this group
+  // renders in its own titled block lower on the page, not the top KPI row.
   LA.bottomTileDefs = [
     { key: 'avg_sale_cycle', label: 'Цикл сделки', isDays: true },
     { key: 'sale_fact', label: 'Факт продаж в выбранный период (кол-во)' },
-    { key: 'sale_fact_amount', label: 'Факт суммы продаж в выбранный период', isCurrency: true }
+    { key: 'sale_fact_amount', label: 'Факт суммы продаж в выбранный период', isCurrency: true },
+    { key: 'avg_check', label: 'Средний чек', isCurrency: true }
   ];
 
   LA.charts = {

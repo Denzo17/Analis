@@ -101,7 +101,7 @@
     content.appendChild(box);
   }
 
-  function buildTileData(overall, design, cost) {
+  function buildTileData(overall, design, cost, avgCheck) {
     var byKey = {
       new_leads: overall.newCount,
       key_stage: overall.keyCount,
@@ -110,7 +110,8 @@
       sale_rate_from_key: overall.keyToSaleRate,
       sale_rate_from_new: overall.newToSaleRate,
       in_progress: overall.inProgressCount,
-      lost: overall.lostCount
+      lost: overall.lostCount,
+      avg_check: avgCheck
     };
     if (cost) {
       byKey.cost_per_lead = cost.cpl;
@@ -135,7 +136,8 @@
     var byKey = {
       avg_sale_cycle: avgSaleCycleDays,
       sale_fact: saleFactCount,
-      sale_fact_amount: saleFactAmount
+      sale_fact_amount: saleFactAmount,
+      avg_check: saleFactCount ? Math.round((saleFactAmount / saleFactCount) * 100) / 100 : null
     };
     var visible = (design && design.visibleBottomTiles) || window.LA.bottomTileDefs.map(function (d) { return d.key; });
     return window.LA.bottomTileDefs
@@ -184,9 +186,12 @@
     var design = data.settings.design || {};
     setAccentColor(design.accentColor);
 
+    var dealsWonSum = (data.dealsWon || []).reduce(function (sum, d) { return sum + (Number(d.price) || 0); }, 0);
+    var topAvgCheck = data.overall.saleCount ? Math.round((dealsWonSum / data.overall.saleCount) * 100) / 100 : null;
+
     var tilesHost = document.createElement('div');
     content.appendChild(tilesHost);
-    window.LA.charts.renderTiles(tilesHost, buildTileData(data.overall, design, data.cost));
+    window.LA.charts.renderTiles(tilesHost, buildTileData(data.overall, design, data.cost, topAvgCheck));
 
     if (design.showFunnelChart !== false) {
       var funnelHost = document.createElement('div');
