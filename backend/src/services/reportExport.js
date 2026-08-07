@@ -5,6 +5,20 @@ const ExcelJS = require('exceljs');
 const FONT_REGULAR = path.join(__dirname, '..', '..', 'assets', 'fonts', 'DejaVuSans.ttf');
 const FONT_BOLD = path.join(__dirname, '..', '..', 'assets', 'fonts', 'DejaVuSans-Bold.ttf');
 
+// Same palette as the dashboard's light theme (frontend/css/dashboard.css)
+// so the PDF reads as the same product, not a generic printout.
+const COLOR_ACCENT = '#2a78d6';
+const COLOR_SERIES_2 = '#eb6834';
+const COLOR_SERIES_3 = '#1baf7a';
+const COLOR_CRITICAL = '#d03b3b';
+const COLOR_TEXT = '#0b0b0b';
+const COLOR_TEXT_SECONDARY = '#52514e';
+const COLOR_TEXT_MUTED = '#898781';
+const COLOR_GRIDLINE = '#e1e0d9';
+const COLOR_CARD_BG = '#f7f7f5';
+const COLOR_HEADER_BG = '#eaf1fb';
+const COLOR_ZEBRA_BG = '#f7f7f5';
+
 function formatNumber(v) {
   return new Intl.NumberFormat('ru-RU').format(Math.round(v || 0));
 }
@@ -145,16 +159,18 @@ function buildReportModel(dashboard, meta) {
   if (design.showFunnelChart !== false) {
     const lostShare = overall.newCount ? (overall.lostCount / overall.newCount) * 100 : 0;
     const funnelRows = [
-      { stage: 'Новые лиды', value: overall.newCount, share: null },
-      { stage: 'Ключевой этап', value: overall.keyCount, share: null },
-      { stage: 'Продажи', value: overall.saleCount, share: null },
-      { stage: 'Отказ', value: overall.lostCount, share: lostShare }
+      { stage: 'Новые лиды', value: overall.newCount, share: null, color: COLOR_ACCENT, child: false },
+      { stage: 'Ключевой этап', value: overall.keyCount, share: null, color: COLOR_SERIES_2, child: false },
+      { stage: 'Продажи', value: overall.saleCount, share: null, color: COLOR_SERIES_3, child: false },
+      { stage: 'Отказ', value: overall.lostCount, share: lostShare, color: COLOR_CRITICAL, child: false }
     ];
     (dashboard.lossReasons || []).forEach((r) => {
       funnelRows.push({
         stage: '  ' + r.label,
         value: r.value,
-        share: overall.lostCount ? (r.value / overall.lostCount) * 100 : 0
+        share: overall.lostCount ? (r.value / overall.lostCount) * 100 : 0,
+        color: COLOR_CRITICAL,
+        child: true
       });
     });
     sections.push({
@@ -247,6 +263,109 @@ function buildReportModel(dashboard, meta) {
   };
 }
 
+// KPI tiles as a card grid (rounded box, muted label on top, bold value
+// below) — same shape as the dashboard's .la-tile boxes.
+function drawTileGrid(doc, rows) {
+  const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+  const cols = 4;
+  const gap = 8;
+  const cardWidth = (pageWidth - gap * (cols - 1)) / cols;
+  const cardHeight = 46;
+  let col = 0;
+  let y = doc.y;
+  rows.forEach((row) => {
+    if (col === 0 && y + cardHeight > doc.page.height - doc.page.margins.bottom) {
+      doc.addPage();
+      y = doc.y;
+    }
+    const x = doc.page.margins.left + col * (cardWidth + gap);
+    doc.roundedRect(x, y, cardWidth, cardHeight, 4).fillAndStroke(COLOR_CARD_BG, COLOR_GRIDLINE);
+    doc.fillColor(COLOR_TEXT_MUTED).font('base').fontSize(7)
+      .text(row.label, x + 8, y + 7, { width: cardWidth - 16, height: 16, ellipsis: true });
+    doc.fillColor(COLOR_TEXT).font('base-bold').fontSize(13)
+      .text(formatCellText({ type: row.type }, row.value), x + 8, y + 24, { width: cardWidth - 16, height: 18, ellipsis: true, lineBreak: false });
+    col += 1;
+    if (col >= cols) { col = 0; y += cardHeight + gap; }
+  });
+  if (col !== 0) y += cardHeight + gap;
+  doc.y = y;
+  doc.x = doc.page.margins.left;
+  doc.fillColor(COLOR_TEXT);
+}
+
+// Colored horizontal bars, same read as the dashboard's funnel chart —
+// loss-reason rows (child: true) render smaller and indented under Отказ.
+function drawFunnelBars(doc, rows) {
+  const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+  const labelWidth = 150;
+  const valueWidth = 90;
+  const barMaxWidth = pageWidth - labelWidth - valueWidth - 16;
+  const topMax = Math.max.apply(null, rows.filter((r) => !r.child).map((r) => r.value).concat([1]));
+  const childMax = Math.max.apply(null, rows.filter((r) => r.child).map((r) => r.value).concat([1]));
+
+  rows.forEach((row) => {
+    const barHeight = row.child ? 9 : 13;
+    const rowHeight = barHeight + 5;
+    if (doc.y + rowHeight > doc.page.height - doc.page.margins.bottom) doc.addPage();
+    const indent = row.child ? 14 : 0;
+    const x0 = doc.page.margins.left;
+    const y0 = doc.y;
+    doc.font('base').fontSize(row.child ? 7 : 9).fillColor(COLOR_TEXT)
+      .text(row.stage, x0 + indent, y0 + 2, { width: labelWidth - indent, height: barHeight, lineBreak: false, ellipsis: true });
+    const barX = x0 + labelWidth;
+    const localMax = row.child ? childMax : topMax;
+    const w = localMax > 0 ? Math.max((row.value / localMax) * barMaxWidth, row.value > 0 ? 3 : 0) : 0;
+    doc.rect(barX, y0, w, barHeight).fill(row.color || COLOR_ACCENT);
+    let valueText = formatNumber(row.value);
+    if (row.share != null) valueText += ' (' + formatPercent(row.share) + ')';
+    doc.font('base').fontSize(8).fillColor(COLOR_TEXT)
+      .text(valueText, barX + barMaxWidth + 8, y0 + 2, { width: valueWidth, height: barHeight, lineBreak: false });
+    doc.y = y0 + rowHeight;
+  });
+  doc.x = doc.page.margins.left;
+  doc.fillColor(COLOR_TEXT);
+}
+
+// A plain data table, but with a tinted header row and zebra striping —
+// same reading aid as .la-table on the dashboard.
+function drawStyledTable(doc, columns, rows) {
+  const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+  const colWidth = pageWidth / columns.length;
+  const rowHeight = 16;
+  const x0 = doc.page.margins.left;
+
+  function drawRow(cells, opts) {
+    opts = opts || {};
+    if (doc.y + rowHeight > doc.page.height - doc.page.margins.bottom) {
+      doc.addPage();
+    }
+    const y = doc.y;
+    if (opts.headerBg) {
+      doc.rect(x0, y, pageWidth, rowHeight).fill(COLOR_HEADER_BG);
+    } else if (opts.zebra) {
+      doc.rect(x0, y, pageWidth, rowHeight).fill(COLOR_ZEBRA_BG);
+    }
+    let x = x0;
+    doc.font(opts.bold ? 'base-bold' : 'base').fontSize(8).fillColor(opts.headerBg ? COLOR_ACCENT : COLOR_TEXT);
+    columns.forEach((col, i) => {
+      doc.text(String(cells[i]), x + 4, y + 4, { width: colWidth - 8, height: rowHeight - 4, ellipsis: true, lineBreak: false });
+      x += colWidth;
+    });
+    doc.y = y + rowHeight;
+  }
+
+  drawRow(columns.map((c) => c.label), { bold: true, headerBg: true });
+  if (!rows.length) {
+    drawRow(['Нет данных за выбранный период'].concat(columns.slice(1).map(() => '')), {});
+  } else {
+    rows.forEach((row, idx) => {
+      drawRow(columns.map((c) => formatCellText(c, row[c.key])), { zebra: idx % 2 === 1 });
+    });
+  }
+  doc.x = x0;
+  doc.fillColor(COLOR_TEXT);
+}
+
 function generatePdf(model) {
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({ margin: 36, size: 'A4', layout: 'landscape', bufferPages: true });
@@ -258,67 +377,53 @@ function generatePdf(model) {
     doc.registerFont('base', FONT_REGULAR);
     doc.registerFont('base-bold', FONT_BOLD);
 
-    doc.font('base-bold').fontSize(16).fillColor('#000').text(model.title);
-    doc.font('base').fontSize(10).fillColor('#555');
-    if (model.pipelineName) doc.text('Воронка: ' + model.pipelineName);
-    if (model.meta.periodLabel) doc.text('Период: ' + model.meta.periodLabel);
-    if (model.meta.managerNames && model.meta.managerNames.length) doc.text('Ответственные: ' + model.meta.managerNames.join(', '));
-    if (model.meta.sourceNames && model.meta.sourceNames.length) doc.text('Источники: ' + model.meta.sourceNames.join(', '));
-    if (model.meta.utmCampaigns && model.meta.utmCampaigns.length) doc.text('utm_campaign: ' + model.meta.utmCampaigns.join(', '));
-    doc.text('Сформирован: ' + new Date().toLocaleString('ru-RU'));
-    doc.fillColor('#000');
+    doc.rect(0, 0, doc.page.width, 8).fill(COLOR_ACCENT);
+    doc.x = doc.page.margins.left;
+    doc.y = doc.page.margins.top + 4;
+
+    doc.font('base-bold').fontSize(16).fillColor(COLOR_TEXT).text(model.title, doc.x, doc.y);
+    doc.font('base').fontSize(10).fillColor(COLOR_TEXT_SECONDARY);
+    if (model.pipelineName) { doc.x = doc.page.margins.left; doc.text('Воронка: ' + model.pipelineName, doc.x, doc.y); }
+    if (model.meta.periodLabel) { doc.x = doc.page.margins.left; doc.text('Период: ' + model.meta.periodLabel, doc.x, doc.y); }
+    if (model.meta.managerNames && model.meta.managerNames.length) { doc.x = doc.page.margins.left; doc.text('Ответственные: ' + model.meta.managerNames.join(', '), doc.x, doc.y); }
+    if (model.meta.sourceNames && model.meta.sourceNames.length) { doc.x = doc.page.margins.left; doc.text('Источники: ' + model.meta.sourceNames.join(', '), doc.x, doc.y); }
+    if (model.meta.utmCampaigns && model.meta.utmCampaigns.length) { doc.x = doc.page.margins.left; doc.text('utm_campaign: ' + model.meta.utmCampaigns.join(', '), doc.x, doc.y); }
+    doc.x = doc.page.margins.left;
+    doc.text('Сформирован: ' + new Date().toLocaleString('ru-RU'), doc.x, doc.y);
+    doc.fillColor(COLOR_TEXT);
     doc.moveDown();
 
     model.sections.forEach((section) => {
       // Keep a section's title from being stranded alone at the bottom of a
-      // page with its table starting fresh on the next one.
+      // page with its content starting fresh on the next one.
       if (doc.y > doc.page.height - doc.page.margins.bottom - 60) {
         doc.addPage();
       }
-      doc.moveDown(0.5);
-      // drawRow below positions every cell at an explicit x/y, which leaves
-      // pdfkit's internal cursor wherever the last cell landed — reset it
-      // to the left margin before any flowing (no-explicit-x) text, or
-      // titles/kv rows after a table section render pushed to the right.
+      doc.moveDown(0.6);
+      // drawStyledTable/drawFunnelBars/drawTileGrid all position every
+      // element at an explicit x/y, which leaves pdfkit's internal cursor
+      // wherever the last one landed — reset it before any flowing
+      // (no-explicit-x) text, or the next title renders pushed to the right.
       doc.x = doc.page.margins.left;
-      doc.font('base-bold').fontSize(12).text(section.title, doc.page.margins.left, doc.y);
-      doc.moveDown(0.3);
+      doc.font('base-bold').fontSize(12).fillColor(COLOR_ACCENT).text(section.title, doc.page.margins.left, doc.y);
+      const ruleY = doc.y + 2;
+      doc.moveTo(doc.page.margins.left, ruleY)
+        .lineTo(doc.page.width - doc.page.margins.right, ruleY)
+        .lineWidth(1.2)
+        .strokeColor(COLOR_ACCENT)
+        .stroke();
+      doc.y = ruleY + 8;
+      doc.fillColor(COLOR_TEXT);
 
       if (section.kind === 'kv') {
-        doc.font('base').fontSize(9);
-        section.rows.forEach((row) => {
-          doc.x = doc.page.margins.left;
-          doc.text(row.label + ': ' + formatCellText({ type: row.type }, row.value), doc.page.margins.left, doc.y);
-        });
+        drawTileGrid(doc, section.rows);
         return;
       }
-
-      const columns = section.columns;
-      const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
-      const colWidth = pageWidth / columns.length;
-      const rowHeight = 14;
-
-      function drawRow(cells, bold) {
-        if (doc.y + rowHeight > doc.page.height - doc.page.margins.bottom) {
-          doc.addPage();
-        }
-        const y = doc.y;
-        let x = doc.page.margins.left;
-        doc.font(bold ? 'base-bold' : 'base').fontSize(8);
-        columns.forEach((col, i) => {
-          doc.text(String(cells[i]), x, y, { width: colWidth - 4, height: rowHeight, ellipsis: true, lineBreak: false });
-          x += colWidth;
-        });
-        doc.y = y + rowHeight;
+      if (section.id === 'funnel') {
+        drawFunnelBars(doc, section.rows);
+        return;
       }
-
-      drawRow(columns.map((c) => c.label), true);
-      if (!section.rows.length) {
-        drawRow(['Нет данных за выбранный период'].concat(columns.slice(1).map(() => '')), false);
-      }
-      section.rows.forEach((row) => {
-        drawRow(columns.map((c) => formatCellText(c, row[c.key])), false);
-      });
+      drawStyledTable(doc, section.columns, section.rows);
     });
 
     doc.end();
@@ -375,65 +480,45 @@ function sheetNameFor(title) {
   return cleaned.slice(0, 31) || 'Лист';
 }
 
+// Everything on one sheet, sections stacked top to bottom in dashboard
+// order — quicker to open and scan than hunting across tabs, at the cost
+// of more scrolling for the bigger tables.
 async function generateXlsx(model) {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'Анализ лидов';
   workbook.created = new Date();
 
-  const infoSheet = workbook.addWorksheet(sheetNameFor('Показатели'));
+  const sheet = workbook.addWorksheet(sheetNameFor('Отчёт'));
   let row = 1;
-  infoSheet.getRow(row).getCell(1).value = model.title;
-  infoSheet.getRow(row).getCell(1).font = { bold: true, size: 14 };
+  sheet.getRow(row).getCell(1).value = model.title;
+  sheet.getRow(row).getCell(1).font = { bold: true, size: 14 };
   row += 2;
-  if (model.pipelineName) { infoSheet.getRow(row).getCell(1).value = 'Воронка: ' + model.pipelineName; row += 1; }
-  if (model.meta.periodLabel) { infoSheet.getRow(row).getCell(1).value = 'Период: ' + model.meta.periodLabel; row += 1; }
-  if (model.meta.managerNames && model.meta.managerNames.length) { infoSheet.getRow(row).getCell(1).value = 'Ответственные: ' + model.meta.managerNames.join(', '); row += 1; }
-  if (model.meta.sourceNames && model.meta.sourceNames.length) { infoSheet.getRow(row).getCell(1).value = 'Источники: ' + model.meta.sourceNames.join(', '); row += 1; }
-  if (model.meta.utmCampaigns && model.meta.utmCampaigns.length) { infoSheet.getRow(row).getCell(1).value = 'utm_campaign: ' + model.meta.utmCampaigns.join(', '); row += 1; }
-  infoSheet.getRow(row).getCell(1).value = 'Сформирован: ' + new Date().toLocaleString('ru-RU');
+  if (model.pipelineName) { sheet.getRow(row).getCell(1).value = 'Воронка: ' + model.pipelineName; row += 1; }
+  if (model.meta.periodLabel) { sheet.getRow(row).getCell(1).value = 'Период: ' + model.meta.periodLabel; row += 1; }
+  if (model.meta.managerNames && model.meta.managerNames.length) { sheet.getRow(row).getCell(1).value = 'Ответственные: ' + model.meta.managerNames.join(', '); row += 1; }
+  if (model.meta.sourceNames && model.meta.sourceNames.length) { sheet.getRow(row).getCell(1).value = 'Источники: ' + model.meta.sourceNames.join(', '); row += 1; }
+  if (model.meta.utmCampaigns && model.meta.utmCampaigns.length) { sheet.getRow(row).getCell(1).value = 'utm_campaign: ' + model.meta.utmCampaigns.join(', '); row += 1; }
+  sheet.getRow(row).getCell(1).value = 'Сформирован: ' + new Date().toLocaleString('ru-RU');
   row += 2;
 
-  model.sections.filter((s) => s.kind === 'kv').forEach((section) => {
-    infoSheet.getRow(row).getCell(1).value = section.title;
-    infoSheet.getRow(row).getCell(1).font = { bold: true };
+  model.sections.forEach((section) => {
+    sheet.getRow(row).getCell(1).value = section.title;
+    sheet.getRow(row).getCell(1).font = { bold: true, size: 12 };
     row += 1;
-    section.rows.forEach((r) => {
-      infoSheet.getRow(row).getCell(1).value = r.label;
-      setCellValueAndFormat(infoSheet.getRow(row).getCell(2), r.type, r.value);
-      row += 1;
-    });
+    if (section.kind === 'kv') {
+      section.rows.forEach((r) => {
+        sheet.getRow(row).getCell(1).value = r.label;
+        setCellValueAndFormat(sheet.getRow(row).getCell(2), r.type, r.value);
+        row += 1;
+      });
+    } else {
+      row = writeTableBlock(sheet, row, section.columns, section.rows);
+    }
     row += 1;
   });
 
-  const funnelSection = model.sections.find((s) => s.id === 'funnel');
-  if (funnelSection) {
-    infoSheet.getRow(row).getCell(1).value = funnelSection.title;
-    infoSheet.getRow(row).getCell(1).font = { bold: true };
-    row += 1;
-    row = writeTableBlock(infoSheet, row, funnelSection.columns, funnelSection.rows);
-  }
-  infoSheet.columns.forEach((col) => { col.width = 32; });
-  infoSheet.getColumn(1).width = 42;
-
-  model.sections
-    .filter((s) => s.kind === 'table' && s.id !== 'funnel')
-    .forEach((section) => {
-      const sheet = workbook.addWorksheet(sheetNameFor(section.title));
-      const headerRow = sheet.getRow(1);
-      section.columns.forEach((col, i) => {
-        headerRow.getCell(i + 1).value = col.label;
-        headerRow.getCell(i + 1).font = { bold: true };
-      });
-      section.rows.forEach((r, idx) => {
-        const excelRow = sheet.getRow(idx + 2);
-        section.columns.forEach((col, i) => {
-          setCellValueAndFormat(excelRow.getCell(i + 1), col.type, r[col.key]);
-        });
-      });
-      section.columns.forEach((col, i) => {
-        sheet.getColumn(i + 1).width = Math.max(14, col.label.length + 4);
-      });
-    });
+  sheet.columns.forEach((col) => { col.width = 26; });
+  sheet.getColumn(1).width = 40;
 
   return workbook.xlsx.writeBuffer();
 }
