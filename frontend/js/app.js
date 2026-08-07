@@ -131,20 +131,23 @@
       });
   }
 
-  function buildCycleSummaryTileData(avgSaleCycleDays, saleFactCount, saleFactAmount) {
+  function buildCycleSummaryTileData(design, avgSaleCycleDays, saleFactCount, saleFactAmount) {
     var byKey = {
       avg_sale_cycle: avgSaleCycleDays,
       sale_fact: saleFactCount,
       sale_fact_amount: saleFactAmount
     };
-    return window.LA.bottomTileDefs.map(function (def) {
-      return {
-        label: def.label,
-        value: byKey[def.key],
-        isDays: !!def.isDays,
-        isCurrency: !!def.isCurrency
-      };
-    });
+    var visible = (design && design.visibleBottomTiles) || window.LA.bottomTileDefs.map(function (d) { return d.key; });
+    return window.LA.bottomTileDefs
+      .filter(function (def) { return visible.indexOf(def.key) !== -1; })
+      .map(function (def) {
+        return {
+          label: def.label,
+          value: byKey[def.key],
+          isDays: !!def.isDays,
+          isCurrency: !!def.isCurrency
+        };
+      });
   }
 
   // Saves one tree row's spend figure (keyed by its path + the currently
@@ -288,16 +291,13 @@
       });
     });
 
-    if (design.showCycleSummary !== false) {
+    var saleFactCount = cycleDeals.length;
+    var saleFactAmount = cycleDeals.reduce(function (sum, d) { return sum + (Number(d.price) || 0); }, 0);
+    var cycleSummaryTiles = buildCycleSummaryTileData(design, data.avgSaleCycleDays, saleFactCount, saleFactAmount);
+    if (cycleSummaryTiles.length) {
       var cycleSummaryHost = document.createElement('div');
       content.appendChild(cycleSummaryHost);
-      var saleFactCount = cycleDeals.length;
-      var saleFactAmount = cycleDeals.reduce(function (sum, d) { return sum + (Number(d.price) || 0); }, 0);
-      window.LA.charts.renderTiles(
-        cycleSummaryHost,
-        buildCycleSummaryTileData(data.avgSaleCycleDays, saleFactCount, saleFactAmount),
-        'Факт продаж выбранного периода'
-      );
+      window.LA.charts.renderTiles(cycleSummaryHost, cycleSummaryTiles, 'Факт продаж выбранного периода');
     }
 
     if (design.showAvgSaleCycleDeals !== false) {

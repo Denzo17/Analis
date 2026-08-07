@@ -53,23 +53,28 @@
     accentGroup.appendChild(accentInput);
     panel.appendChild(accentGroup);
 
-    var tilesGroup = el('div', 'la-settings__group');
-    var tilesTitle = el('div', 'la-settings__group-title');
-    tilesTitle.textContent = 'Верхний дашборд';
-    tilesGroup.appendChild(tilesTitle);
+    function renderTileCheckboxGroup(titleText, tileDefs, visibleKeys) {
+      var group = el('div', 'la-settings__group');
+      var groupTitle = el('div', 'la-settings__group-title');
+      groupTitle.textContent = titleText;
+      group.appendChild(groupTitle);
+      var checkboxes = {};
+      tileDefs.forEach(function (def) {
+        var row = el('label', 'la-settings__checkbox');
+        var cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.checked = visibleKeys.indexOf(def.key) !== -1;
+        checkboxes[def.key] = cb;
+        row.appendChild(cb);
+        row.appendChild(document.createTextNode(def.label));
+        group.appendChild(row);
+      });
+      panel.appendChild(group);
+      return checkboxes;
+    }
+
     var visibleTiles = (opts.settings.design && opts.settings.design.visibleTiles) || LA.tileDefs.map(function (t) { return t.key; });
-    var tileCheckboxes = {};
-    LA.tileDefs.forEach(function (def) {
-      var row = el('label', 'la-settings__checkbox');
-      var cb = document.createElement('input');
-      cb.type = 'checkbox';
-      cb.checked = visibleTiles.indexOf(def.key) !== -1;
-      tileCheckboxes[def.key] = cb;
-      row.appendChild(cb);
-      row.appendChild(document.createTextNode(def.label));
-      tilesGroup.appendChild(row);
-    });
-    panel.appendChild(tilesGroup);
+    var tileCheckboxes = renderTileCheckboxGroup('Верхний дашборд', LA.tileDefs, visibleTiles);
 
     var blockCheckboxes = {};
 
@@ -102,9 +107,8 @@
       ['showAvgSaleCycleDeals', 'Сделки в расчёте среднего цикла']
     ]);
 
-    renderBlockGroup('Нижний дашборд', [
-      ['showCycleSummary', 'Факт продаж выбранного периода (итоговый блок)']
-    ]);
+    var visibleBottomTiles = (opts.settings.design && opts.settings.design.visibleBottomTiles) || LA.bottomTileDefs.map(function (t) { return t.key; });
+    var bottomTileCheckboxes = renderTileCheckboxGroup('Нижний дашборд', LA.bottomTileDefs, visibleBottomTiles);
 
     var actions = el('div', 'la-settings__actions');
     var saveBtn = el('button', 'la-btn la-btn--primary');
@@ -119,16 +123,17 @@
 
     saveBtn.addEventListener('click', function () {
       var visible = LA.tileDefs.filter(function (def) { return tileCheckboxes[def.key].checked; }).map(function (def) { return def.key; });
+      var visibleBottom = LA.bottomTileDefs.filter(function (def) { return bottomTileCheckboxes[def.key].checked; }).map(function (def) { return def.key; });
       var design = {
         accentColor: accentInput.value,
         visibleTiles: visible,
+        visibleBottomTiles: visibleBottom,
         showFunnelChart: blockCheckboxes.showFunnelChart.checked,
         showManagerTable: blockCheckboxes.showManagerTable.checked,
         showSourceTree: blockCheckboxes.showSourceTree.checked,
         showDealsInProgress: blockCheckboxes.showDealsInProgress.checked,
         showDealsLost: blockCheckboxes.showDealsLost.checked,
         showDealsWon: blockCheckboxes.showDealsWon.checked,
-        showCycleSummary: blockCheckboxes.showCycleSummary.checked,
         showAvgSaleCycleDeals: blockCheckboxes.showAvgSaleCycleDeals.checked
       };
       opts.onSave({
