@@ -223,7 +223,7 @@
     if (design.showSourceTree !== false) {
       var treeHost = document.createElement('div');
       content.appendChild(treeHost);
-      window.LA.charts.renderTree(treeHost, 'Источник клиента → utm_source → utm_campaign', 'Источник / utm_source / utm_campaign', [
+      window.LA.charts.renderTree(treeHost, 'Источник клиента', 'Источник / utm_source / utm_campaign', [
         { key: 'newCount', label: 'Новые', numeric: true },
         { key: 'newToKeyRate', label: 'Лид → Ключ, %', numeric: true, percent: true, meter: true },
         { key: 'keyCount', label: 'Ключевой этап', numeric: true },

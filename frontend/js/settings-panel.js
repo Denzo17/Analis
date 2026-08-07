@@ -78,7 +78,7 @@
     var blockDefs = [
       ['showFunnelChart', 'Воронка конверсии'],
       ['showManagerTable', 'Таблица по менеджерам'],
-      ['showSourceTree', 'Источник клиента → utm_source → utm_campaign'],
+      ['showSourceTree', 'Источник клиента'],
       ['showDealsInProgress', 'Сделки в работе'],
       ['showDealsLost', 'Отказы'],
       ['showDealsWon', 'Успешные сделки'],
