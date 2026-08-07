@@ -101,7 +101,7 @@
     content.appendChild(box);
   }
 
-  function buildTileData(overall, design, cost, avgSaleCycleDays) {
+  function buildTileData(overall, design, cost) {
     var byKey = {
       new_leads: overall.newCount,
       key_stage: overall.keyCount,
@@ -110,8 +110,7 @@
       sale_rate_from_key: overall.keyToSaleRate,
       sale_rate_from_new: overall.newToSaleRate,
       in_progress: overall.inProgressCount,
-      lost: overall.lostCount,
-      avg_sale_cycle: avgSaleCycleDays
+      lost: overall.lostCount
     };
     if (cost) {
       byKey.cost_per_lead = cost.cpl;
@@ -130,6 +129,20 @@
           accent: def.key === 'new_leads'
         };
       });
+  }
+
+  function buildCycleSummaryTileData(avgSaleCycleDays, saleFactCount) {
+    var byKey = {
+      avg_sale_cycle: avgSaleCycleDays,
+      sale_fact: saleFactCount
+    };
+    return window.LA.bottomTileDefs.map(function (def) {
+      return {
+        label: def.label,
+        value: byKey[def.key],
+        isDays: !!def.isDays
+      };
+    });
   }
 
   // Saves one tree row's spend figure (keyed by its path + the currently
@@ -168,7 +181,7 @@
 
     var tilesHost = document.createElement('div');
     content.appendChild(tilesHost);
-    window.LA.charts.renderTiles(tilesHost, buildTileData(data.overall, design, data.cost, data.avgSaleCycleDays));
+    window.LA.charts.renderTiles(tilesHost, buildTileData(data.overall, design, data.cost));
 
     if (design.showFunnelChart !== false) {
       var funnelHost = document.createElement('div');
@@ -245,6 +258,17 @@
         { key: 'utmCampaign', label: 'utm_campaign' },
         { key: 'price', label: 'Бюджет', numeric: true }
       ], data.dealsWon.slice(0, 50));
+    }
+
+    if (design.showCycleSummary !== false) {
+      var cycleSummaryHost = document.createElement('div');
+      content.appendChild(cycleSummaryHost);
+      var saleFactCount = (data.avgSaleCycleDeals || []).length;
+      window.LA.charts.renderTiles(
+        cycleSummaryHost,
+        buildCycleSummaryTileData(data.avgSaleCycleDays, saleFactCount),
+        'Цикл сделки'
+      );
     }
 
     if (design.showAvgSaleCycleDeals !== false) {

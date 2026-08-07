@@ -27,9 +27,17 @@
   }
 
   // tiles: [{ label, value, isPercent, isCurrency, isDays, accent }]
-  function renderTiles(container, tiles) {
+  // title (optional): wraps the tiles in a titled card, e.g. for a smaller
+  // KPI block lower on the page instead of the untitled top row.
+  function renderTiles(container, tiles, title) {
     container.innerHTML = '';
-    var wrap = el('div', 'la-tiles');
+    var host = container;
+    if (title) {
+      var card = el('div', 'la-card');
+      card.appendChild(el('div', 'la-card__title', title));
+      host = card;
+    }
+    var wrap = el('div', 'la-tiles' + (title ? ' la-tiles--nested' : ''));
     tiles.forEach(function (tile) {
       var box = el('div', 'la-tile');
       box.appendChild(el('div', 'la-tile__label', tile.label));
@@ -41,7 +49,8 @@
       box.appendChild(valueEl);
       wrap.appendChild(box);
     });
-    container.appendChild(wrap);
+    host.appendChild(wrap);
+    if (title) container.appendChild(host);
   }
 
   // steps: [{ label, value, color, children?, sharePercent? }]. Bars are
@@ -291,14 +300,21 @@
     { key: 'new_leads', label: 'Новые лиды' },
     { key: 'key_stage', label: 'Ключевой этап' },
     { key: 'key_stage_rate', label: 'Лид → Ключевой, %', isPercent: true },
-    { key: 'sale', label: 'Продажи' },
+    { key: 'sale', label: 'Продажи из лидов выбранного периода' },
     { key: 'sale_rate_from_key', label: 'Ключевой → Продажа, %', isPercent: true },
     { key: 'sale_rate_from_new', label: 'Лид → Продажа, %', isPercent: true },
     { key: 'in_progress', label: 'В работе' },
     { key: 'lost', label: 'Отказ' },
     { key: 'cost_per_lead', label: 'Цена лида (сайт)', isCurrency: true },
-    { key: 'cost_per_sale', label: 'Цена клиента (сайт)', isCurrency: true },
-    { key: 'avg_sale_cycle', label: 'Средний цикл сделки', isDays: true }
+    { key: 'cost_per_sale', label: 'Цена клиента (сайт)', isCurrency: true }
+  ];
+
+  // Separate from tileDefs (settings-panel visibility list) — this pair
+  // renders in its own titled block lower on the page, not the top KPI row,
+  // and isn't individually toggleable there.
+  LA.bottomTileDefs = [
+    { key: 'avg_sale_cycle', label: 'Цикл сделки', isDays: true },
+    { key: 'sale_fact', label: 'Факт продаж в выбранный период' }
   ];
 
   LA.charts = {

@@ -81,6 +81,7 @@
       ['showSourceTree', 'Источник клиента → utm_source → utm_campaign'],
       ['showDealsInProgress', 'Сделки в работе'],
       ['showDealsWon', 'Успешные сделки'],
+      ['showCycleSummary', 'Цикл сделки (итоговый блок)'],
       ['showAvgSaleCycleDeals', 'Сделки в расчёте среднего цикла']
     ];
     var blockCheckboxes = {};
@@ -118,6 +119,7 @@
         showSourceTree: blockCheckboxes.showSourceTree.checked,
         showDealsInProgress: blockCheckboxes.showDealsInProgress.checked,
         showDealsWon: blockCheckboxes.showDealsWon.checked,
+        showCycleSummary: blockCheckboxes.showCycleSummary.checked,
         showAvgSaleCycleDeals: blockCheckboxes.showAvgSaleCycleDeals.checked
       };
       opts.onSave({
