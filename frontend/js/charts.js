@@ -142,14 +142,39 @@
     return td;
   }
 
-  // columns: [{ key, label, numeric, percent, meter }]
+  // columns: [{ key, label, numeric, percent, meter, sumInFooter }]
   // rows: array of plain objects keyed by column.key
-  function renderTable(container, title, columns, rows) {
+  // opts:
+  //   totalsSource — full (unsliced) row set to total columns marked
+  //     `sumInFooter` over, when `rows` itself is a truncated slice for
+  //     display (defaults to `rows`).
+  //   collapsible — render the title as a toggle and start the table
+  //     collapsed, for tables that don't need to stay open by default.
+  function renderTable(container, title, columns, rows, opts) {
+    opts = opts || {};
     container.innerHTML = '';
     var card = el('div', 'la-card');
-    if (title) card.appendChild(el('div', 'la-card__title', title));
 
     var wrap = el('div', 'la-table-wrap');
+    var collapsed = !!opts.collapsible;
+    if (title) {
+      if (opts.collapsible) {
+        var titleRow = el('div', 'la-card__title la-card__title--toggle');
+        var arrow = el('span', 'la-tree-toggle', collapsed ? '▸' : '▾');
+        titleRow.appendChild(arrow);
+        titleRow.appendChild(document.createTextNode(title));
+        titleRow.addEventListener('click', function () {
+          collapsed = !collapsed;
+          arrow.textContent = collapsed ? '▸' : '▾';
+          wrap.style.display = collapsed ? 'none' : '';
+        });
+        card.appendChild(titleRow);
+      } else {
+        card.appendChild(el('div', 'la-card__title', title));
+      }
+    }
+    if (collapsed) wrap.style.display = 'none';
+
     var table = el('table', 'la-table');
     var thead = el('thead');
     var headRow = el('tr');
@@ -174,6 +199,25 @@
       });
       tbody.appendChild(tr);
     });
+
+    if (rows.length && columns.some(function (c) { return c.sumInFooter; })) {
+      var totalsSource = opts.totalsSource || rows;
+      var totalTr = el('tr', 'la-table-total-row');
+      columns.forEach(function (col, idx) {
+        if (idx === 0) {
+          totalTr.appendChild(el('td', '', 'Итого'));
+          return;
+        }
+        if (col.sumInFooter) {
+          var sum = totalsSource.reduce(function (acc, r) { return acc + (Number(r[col.key]) || 0); }, 0);
+          totalTr.appendChild(renderStatCell(col, sum));
+        } else {
+          totalTr.appendChild(el('td', col.numeric || col.currency || col.days ? 'la-num' : ''));
+        }
+      });
+      tbody.appendChild(totalTr);
+    }
+
     table.appendChild(tbody);
     wrap.appendChild(table);
     card.appendChild(wrap);
@@ -206,7 +250,7 @@
     var headRow = el('tr');
     headRow.appendChild(el('th', '', labelHeader));
     statColumns.forEach(function (col) {
-      headRow.appendChild(el('th', col.numeric || col.currency ? 'la-num' : '', col.label));
+      headRow.appendChild(el('th', col.numeric || col.currency || col.editable ? 'la-num' : '', col.label));
     });
     thead.appendChild(headRow);
     table.appendChild(thead);

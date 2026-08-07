@@ -7,6 +7,7 @@ const DEFAULT_DESIGN = {
   showSourceTree: true,
   showFunnelChart: true,
   showDealsInProgress: true,
+  showDealsLost: true,
   showDealsWon: true,
   showCycleSummary: true,
   showAvgSaleCycleDeals: true

@@ -80,8 +80,9 @@
       ['showManagerTable', 'Таблица по менеджерам'],
       ['showSourceTree', 'Источник клиента → utm_source → utm_campaign'],
       ['showDealsInProgress', 'Сделки в работе'],
+      ['showDealsLost', 'Отказы'],
       ['showDealsWon', 'Успешные сделки'],
-      ['showCycleSummary', 'Цикл сделки (итоговый блок)'],
+      ['showCycleSummary', 'Факт продаж выбранного периода (итоговый блок)'],
       ['showAvgSaleCycleDeals', 'Сделки в расчёте среднего цикла']
     ];
     var blockCheckboxes = {};
@@ -118,6 +119,7 @@
         showManagerTable: blockCheckboxes.showManagerTable.checked,
         showSourceTree: blockCheckboxes.showSourceTree.checked,
         showDealsInProgress: blockCheckboxes.showDealsInProgress.checked,
+        showDealsLost: blockCheckboxes.showDealsLost.checked,
         showDealsWon: blockCheckboxes.showDealsWon.checked,
         showCycleSummary: blockCheckboxes.showCycleSummary.checked,
         showAvgSaleCycleDeals: blockCheckboxes.showAvgSaleCycleDeals.checked

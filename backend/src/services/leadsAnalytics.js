@@ -515,7 +515,12 @@ function buildDashboard({
     .sort((a, b) => b.created_at - a.created_at)
     .map(toDealRow);
 
-  return { overall, managerBreakdown, sourceTree, dealsInProgress, dealsWon, filterOptions, cost, lossReasons };
+  const dealsLost = filtered
+    .filter((l) => l.status_id === LOST_STATUS_ID)
+    .sort((a, b) => b.created_at - a.created_at)
+    .map(toDealRow);
+
+  return { overall, managerBreakdown, sourceTree, dealsInProgress, dealsWon, dealsLost, filterOptions, cost, lossReasons };
 }
 
 module.exports = {

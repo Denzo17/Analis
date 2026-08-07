@@ -263,6 +263,14 @@ html, body {
   margin-bottom: 14px;
 }
 
+.la-card__title--toggle {
+  cursor: pointer;
+  user-select: none;
+}
+.la-card__title--toggle .la-tree-toggle {
+  margin-right: 6px;
+}
+
 .la-bars {
   display: flex;
   flex-direction: column;
@@ -334,6 +342,12 @@ table.la-table {
 }
 
 .la-table td.la-num, .la-table th.la-num { text-align: right; font-variant-numeric: tabular-nums; }
+
+.la-table-total-row td {
+  font-weight: 600;
+  border-top: 2px solid var(--border);
+  border-bottom: none;
+}
 
 .la-meter-cell { position: relative; }
 .la-meter-cell__bar {
