@@ -131,16 +131,18 @@
       });
   }
 
-  function buildCycleSummaryTileData(avgSaleCycleDays, saleFactCount) {
+  function buildCycleSummaryTileData(avgSaleCycleDays, saleFactCount, saleFactAmount) {
     var byKey = {
       avg_sale_cycle: avgSaleCycleDays,
-      sale_fact: saleFactCount
+      sale_fact: saleFactCount,
+      sale_fact_amount: saleFactAmount
     };
     return window.LA.bottomTileDefs.map(function (def) {
       return {
         label: def.label,
         value: byKey[def.key],
-        isDays: !!def.isDays
+        isDays: !!def.isDays,
+        isCurrency: !!def.isCurrency
       };
     });
   }
@@ -279,13 +281,21 @@
       );
     }
 
+    var cycleDeals = (data.avgSaleCycleDeals || []).map(function (d) {
+      return Object.assign({}, d, {
+        createdDate: formatDateFromUnix(d.createdAt),
+        reachedDate: formatDateFromUnix(d.reachedAt)
+      });
+    });
+
     if (design.showCycleSummary !== false) {
       var cycleSummaryHost = document.createElement('div');
       content.appendChild(cycleSummaryHost);
-      var saleFactCount = (data.avgSaleCycleDeals || []).length;
+      var saleFactCount = cycleDeals.length;
+      var saleFactAmount = cycleDeals.reduce(function (sum, d) { return sum + (Number(d.price) || 0); }, 0);
       window.LA.charts.renderTiles(
         cycleSummaryHost,
-        buildCycleSummaryTileData(data.avgSaleCycleDays, saleFactCount),
+        buildCycleSummaryTileData(data.avgSaleCycleDays, saleFactCount, saleFactAmount),
         'Факт продаж выбранного периода'
       );
     }
@@ -293,12 +303,6 @@
     if (design.showAvgSaleCycleDeals !== false) {
       var cycleDealsHost = document.createElement('div');
       content.appendChild(cycleDealsHost);
-      var cycleDeals = (data.avgSaleCycleDeals || []).map(function (d) {
-        return Object.assign({}, d, {
-          createdDate: formatDateFromUnix(d.createdAt),
-          reachedDate: formatDateFromUnix(d.reachedAt)
-        });
-      });
       window.LA.charts.renderTable(
         cycleDealsHost,
         'Сделки в расчёте среднего цикла сделки (' + cycleDeals.length + ')',
@@ -310,10 +314,11 @@
           { key: 'utmCampaign', label: 'utm_campaign' },
           { key: 'createdDate', label: 'Дата создания' },
           { key: 'reachedDate', label: 'Дата перехода в продажу' },
-          { key: 'cycleDays', label: 'Цикл сделки', days: true }
+          { key: 'cycleDays', label: 'Цикл сделки', days: true },
+          { key: 'price', label: 'Бюджет', numeric: true, sumInFooter: true }
         ],
         cycleDeals.slice(0, 50),
-        { collapsible: true }
+        { totalsSource: cycleDeals, collapsible: true }
       );
     }
   }

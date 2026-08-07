@@ -353,12 +353,13 @@
     { key: 'cost_per_sale', label: 'Цена клиента (сайт)', isCurrency: true }
   ];
 
-  // Separate from tileDefs (settings-panel visibility list) — this pair
+  // Separate from tileDefs (settings-panel visibility list) — this trio
   // renders in its own titled block lower on the page, not the top KPI row,
   // and isn't individually toggleable there.
   LA.bottomTileDefs = [
     { key: 'avg_sale_cycle', label: 'Цикл сделки', isDays: true },
-    { key: 'sale_fact', label: 'Факт продаж в выбранный период' }
+    { key: 'sale_fact', label: 'Факт продаж в выбранный период (кол-во)' },
+    { key: 'sale_fact_amount', label: 'Факт суммы продаж в выбранный период', isCurrency: true }
   ];
 
   LA.charts = {
