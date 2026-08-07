@@ -55,7 +55,7 @@
 
     var tilesGroup = el('div', 'la-settings__group');
     var tilesTitle = el('div', 'la-settings__group-title');
-    tilesTitle.textContent = 'Показатели на дашборде';
+    tilesTitle.textContent = 'Верхний дашборд';
     tilesGroup.appendChild(tilesTitle);
     var visibleTiles = (opts.settings.design && opts.settings.design.visibleTiles) || LA.tileDefs.map(function (t) { return t.key; });
     var tileCheckboxes = {};
@@ -71,33 +71,40 @@
     });
     panel.appendChild(tilesGroup);
 
-    var blocksGroup = el('div', 'la-settings__group');
-    var blocksTitle = el('div', 'la-settings__group-title');
-    blocksTitle.textContent = 'Блоки дашборда';
-    blocksGroup.appendChild(blocksTitle);
-    var blockDefs = [
+    var blockCheckboxes = {};
+
+    function renderBlockGroup(titleText, defs) {
+      var group = el('div', 'la-settings__group');
+      var groupTitle = el('div', 'la-settings__group-title');
+      groupTitle.textContent = titleText;
+      group.appendChild(groupTitle);
+      defs.forEach(function (pair) {
+        var row = el('label', 'la-settings__checkbox');
+        var cb = document.createElement('input');
+        cb.type = 'checkbox';
+        var current = opts.settings.design ? opts.settings.design[pair[0]] : true;
+        cb.checked = current !== false;
+        blockCheckboxes[pair[0]] = cb;
+        row.appendChild(cb);
+        row.appendChild(document.createTextNode(pair[1]));
+        group.appendChild(row);
+      });
+      panel.appendChild(group);
+    }
+
+    renderBlockGroup('Таблицы', [
       ['showFunnelChart', 'Воронка конверсии'],
       ['showManagerTable', 'Таблица по менеджерам'],
       ['showSourceTree', 'Источник клиента'],
       ['showDealsInProgress', 'Сделки в работе'],
       ['showDealsLost', 'Отказы'],
       ['showDealsWon', 'Успешные сделки'],
-      ['showCycleSummary', 'Факт продаж выбранного периода (итоговый блок)'],
       ['showAvgSaleCycleDeals', 'Сделки в расчёте среднего цикла']
-    ];
-    var blockCheckboxes = {};
-    blockDefs.forEach(function (pair) {
-      var row = el('label', 'la-settings__checkbox');
-      var cb = document.createElement('input');
-      cb.type = 'checkbox';
-      var current = opts.settings.design ? opts.settings.design[pair[0]] : true;
-      cb.checked = current !== false;
-      blockCheckboxes[pair[0]] = cb;
-      row.appendChild(cb);
-      row.appendChild(document.createTextNode(pair[1]));
-      blocksGroup.appendChild(row);
-    });
-    panel.appendChild(blocksGroup);
+    ]);
+
+    renderBlockGroup('Нижний дашборд', [
+      ['showCycleSummary', 'Факт продаж выбранного периода (итоговый блок)']
+    ]);
 
     var actions = el('div', 'la-settings__actions');
     var saveBtn = el('button', 'la-btn la-btn--primary');
